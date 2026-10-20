@@ -81,6 +81,11 @@ namespace Theater
         DateTime toastUntil;
         volatile bool thumbsDirty;
         bool scanning, discBusy, cursorHidden;
+        // USB drives whose movies are in the library right now.
+        public List<UsbDrive> Usb = new List<UsbDrive>();
+        bool usbBusy, rescanAgain;
+        string usbSig = "", usbRemovedNote;
+        readonly List<UsbDrive> usbAnnounce = new List<UsbDrive>();
         string discSig = "";
         float scale = 1, ox, oy;
         DateTime lastMouse = DateTime.Now;
@@ -133,7 +138,7 @@ namespace Theater
                 if (!moving) anim.Stop();
             };
             slow.Tick += (s, e) => SlowTick();
-            discTimer.Tick += (s, e) => PollDiscs();
+            discTimer.Tick += (s, e) => { PollDiscs(); PollUsb(); };
             Load += (s, e) => ApplyDisplayMode();
             Shown += (s, e) =>
             {
@@ -144,6 +149,7 @@ namespace Theater
                 StartRemote();
                 AutoWifi();
                 PollDiscs();
+                PollUsb();
                 System.Net.NetworkInformation.NetworkChange.NetworkAddressChanged += (s2, e2) => { try { BeginInvoke((Action)UpdateRemoteUrl); } catch { } };
                 Microsoft.Win32.SystemEvents.DisplaySettingsChanged += (s2, e2) => { try { BeginInvoke((Action)FitScreen); } catch { } };
                 slow.Start();
@@ -178,30 +184,101 @@ namespace Theater
 
         void Rescan(bool quiet)
         {
-            if (scanning) return;
+            if (scanning) { rescanAgain = true; return; }   // run once more when this scan finishes
             scanning = true;
             if (!quiet) ShowToast("Scanning your movies\u2026", 60);
-            var roots = new List<string>(Cfg.Roots);
+            var folders = new List<string>(Cfg.Roots);
+            var usb = new List<UsbDrive>(Usb);
+            var roots = new List<string>(folders);
+            roots.AddRange(usb.Select(d => d.Root));
             string before = Lib.Items.Count > 0 ? Lib.Signature() : "";
             Task.Run(() =>
             {
                 var lib = Library.Scan(roots);
                 string sig = lib.Signature();
-                if (sig != before) LibraryCache.Save(lib, roots);
+                // USB drives come and go, so only a library without them is remembered for next time.
+                if (sig != before && usb.Count == 0) LibraryCache.Save(lib, folders);
                 return sig == before ? null : lib;   // null: nothing changed, keep what's on screen
             }).ContinueWith(t => BeginInvoke((Action)(() =>
             {
                 scanning = false;
-                if (t.IsFaulted) { if (!quiet) ShowToast("Couldn't scan your movie folders", 4); return; }
-                if (t.Result != null)
+                if (t.IsFaulted) { if (!quiet) ShowToast("Couldn't scan your movie folders", 4); }
+                else
                 {
-                    Lib = t.Result;
-                    foreach (var s in stack) s.Refresh();
+                    if (t.Result != null)
+                    {
+                        Lib = t.Result;
+                        foreach (var s in stack) s.Refresh();
+                    }
+                    string usbNote = UsbAnnouncement() ?? usbRemovedNote;
+                    usbRemovedNote = null;
+                    if (usbNote != null) ShowToast(usbNote, 5);
+                    else if (!quiet || t.Result != null) ShowToast(Lib.Items.Count + (Lib.Items.Count == 1 ? " title" : " titles") + " in your library", 3);
+                    else toast = null;
                 }
-                if (!quiet || t.Result != null) ShowToast(Lib.Items.Count + (Lib.Items.Count == 1 ? " title" : " titles") + " in your library", 3);
-                else toast = null;
                 Kick();
+                if (rescanAgain) { rescanAgain = false; Rescan(true); }
             })));
+        }
+
+        // ---------- USB drives ----------
+
+        // Checks which USB drives are plugged in; when that changes, the library is rescanned with them.
+        void PollUsb()
+        {
+            if (usbBusy) return;
+            usbBusy = true;
+            var folders = new List<string>(Cfg.Roots);
+            bool auto = Cfg.UsbAuto;
+            Task.Run(() => auto ? UsbDrives.Find(folders) : new List<UsbDrive>()).ContinueWith(t => BeginInvoke((Action)(() =>
+            {
+                usbBusy = false;
+                if (t.IsFaulted) return;
+                var found = t.Result;
+                string sig = UsbDrives.Signature(found);
+                if (sig == usbSig) return;
+                var added = found.Where(d => !Usb.Any(o => o.Root == d.Root && o.Label == d.Label)).ToList();
+                var removed = Usb.Where(o => !found.Any(d => d.Root == o.Root && d.Label == o.Label)).ToList();
+                usbSig = sig;
+                Usb = found;
+                usbAnnounce.AddRange(added);
+                if (removed.Count > 0)
+                    usbRemovedNote = removed.Count == 1 ? "USB drive " + removed[0].Display + " removed \u2014 its movies are hidden until it's back" : removed.Count + " USB drives removed";
+                if (added.Count > 0)
+                    ShowToast("Looking for movies on " + (added.Count == 1 ? added[0].Display : "the USB drives") + "\u2026", 30);
+                if (Current is SettingsScreen) Current.Refresh();
+                Rescan(true);
+            })));
+        }
+
+        // "USB drive "Movies" connected - 12 titles added", for drives that just came in.
+        string UsbAnnouncement()
+        {
+            var still = usbAnnounce.Where(d => Usb.Any(o => o.Root == d.Root && o.Label == d.Label)).ToList();
+            usbAnnounce.Clear();
+            if (still.Count == 0) return null;
+            int count = Lib.Items.Count(i => i.Path != null && still.Any(d => i.Path.StartsWith(d.Root, StringComparison.OrdinalIgnoreCase)));
+            string which = still.Count == 1 ? "USB drive " + still[0].Display : still.Count + " USB drives";
+            return count == 0 ? which + " connected \u2014 no movies found on it" : which + " connected \u2014 " + count + (count == 1 ? " title" : " titles") + " added";
+        }
+
+        public void ToggleUsbAuto()
+        {
+            Cfg.UsbAuto = !Cfg.UsbAuto;
+            Cfg.Save();
+            usbSig = "\u0000";   // force a fresh look
+            PollUsb();
+        }
+
+        // Windows announces drives being plugged in or removed; check right away instead of waiting for the timer.
+        protected override void WndProc(ref Message m)
+        {
+            base.WndProc(ref m);
+            const int WM_DEVICECHANGE = 0x219, DBT_DEVICEARRIVAL = 0x8000, DBT_DEVICEREMOVECOMPLETE = 0x8004, DBT_DEVTYP_VOLUME = 2;
+            if (m.Msg != WM_DEVICECHANGE || m.LParam == IntPtr.Zero) return;
+            long ev = m.WParam.ToInt64();
+            if ((ev == DBT_DEVICEARRIVAL || ev == DBT_DEVICEREMOVECOMPLETE) && Marshal.ReadInt32(m.LParam, 4) == DBT_DEVTYP_VOLUME)
+                BeginInvoke((Action)PollUsb);
         }
 
         void PollDiscs()

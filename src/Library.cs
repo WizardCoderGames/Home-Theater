@@ -31,6 +31,7 @@ namespace Theater
         public string Renderer = "auto";     // auto | d3d11 | d3d9 | opengl | gdi
         public string WifiAuto = "";         // saved Wi-Fi network to connect to at startup
         public bool AutoUpdate = true;       // download and install new versions from GitHub
+        public bool UsbAuto = true;          // add movies from USB drives while they're plugged in
 
         // Extra VLC options for the hardware acceleration and renderer choices.
         public string VlcArgs()
@@ -72,6 +73,7 @@ namespace Theater
                             case "renderer": s.Renderer = v; break;
                             case "wifiauto": s.WifiAuto = v; break;
                             case "autoupdate": s.AutoUpdate = v != "0"; break;
+                            case "usbauto": s.UsbAuto = v != "0"; break;
                         }
                     }
                 }
@@ -133,6 +135,7 @@ namespace Theater
                 lines.Add("renderer=" + Renderer);
                 lines.Add("wifiauto=" + WifiAuto);
                 lines.Add("autoupdate=" + (AutoUpdate ? "1" : "0"));
+                lines.Add("usbauto=" + (UsbAuto ? "1" : "0"));
                 File.WriteAllLines(FilePath, lines);
             }
             catch { }

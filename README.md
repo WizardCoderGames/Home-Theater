@@ -15,6 +15,7 @@ It plays the movie files already on your PC (MKV, MP4, AVI and more, up to 4K HD
 - **Your phone is the remote.** Scan the QR code in Settings, type the 4-digit code that pops up on the TV, and you get a D-pad, play/pause, volume, audio and subtitle buttons, search, and your whole library to tap and play. Works in any phone's web browser; no app to install.
 - **Search** by title, year or genre from the keyboard or your phone.
 - **Discs.** Plug in a DVD or Blu-ray drive and a Disc row appears. DVDs and unprotected discs play directly (see *Discs* below).
+- **USB drives.** Plug in a flash drive, SD card or external USB hard drive and its movies are added automatically, in a "USB" row on the home screen and in search, genres and All Movies. Unplug it and they disappear again. Turn this off in **Settings → USB drives**.
 - **Runs well on slow PCs.** Animations switch off automatically if a PC can't draw them smoothly, and you can lower the screen resolution while the app is open (Native, 1080p, 720p).
 - **Playback options for tricky hardware.** Choose hardware acceleration (Automatic, Direct3D 11, DXVA2 or off) and the video renderer (Direct3D 11, Direct3D 9, OpenGL or Windows GDI).
 - **System info.** A live view of the processor, graphics card, memory, CPU and GPU load, display and network.
@@ -94,6 +95,7 @@ You can check right away, or turn automatic updates off, in **Settings → Syste
 - **A movie shows a black or green picture, or stutters:** try another option in **Settings → Hardware acceleration** or **Video renderer**.
 - **Menus feel slow:** set **Settings → Animations** to *Off*, or **Screen resolution** to 1080p.
 - **No movies show up:** check **Settings → Movie folder**, then choose **Rescan library**.
+- **A USB drive's movies don't appear:** make sure **Settings → USB drives** is on. Internal drives are never added automatically; add them as a movie folder instead.
 
 ---
 

@@ -312,6 +312,11 @@ namespace Theater
                 if (cont.Count >= 15) break;
             }
             if (cont.Count > 0) rows.Add(new Row { Title = "Continue Watching", Items = cont, LongTitles = true });
+            foreach (var d in F.Usb)
+            {
+                var onDrive = F.Lib.Items.Where(i => i.Path != null && i.Path.StartsWith(d.Root, StringComparison.OrdinalIgnoreCase)).ToList();
+                if (onDrive.Count > 0) rows.Add(new Row { Title = "USB \u00B7 " + d.RowName, Items = onDrive });
+            }
 
             if (F.Lib.Items.Count > 0)
                 rows.Add(new Row { Title = "Recently Added", Items = F.Lib.Items.OrderByDescending(i => i.Added).Take(20).ToList() });
@@ -928,6 +933,7 @@ namespace Theater
             }
             Add("Library", "Add a movie folder…", "", AddFolder);
             Add("Library", "Rescan library", F.Lib.Items.Count + " titles", () => F.Rescan());
+            Add("Library", "USB drives", (c.UsbAuto ? "Add movies automatically" : "Off") + (F.Usb.Count > 0 ? "  \u00B7  " + F.Usb.Count + " connected" : ""), () => { F.ToggleUsbAuto(); Refresh(); });
 
             Add("Playback", "Disc player", c.DiscPlayer == "" ? "VLC (built in)" : Path.GetFileNameWithoutExtension(c.DiscPlayer), ChooseDiscPlayer);
             Add("Playback", "Hardware acceleration", HwLabel(c.HwDecode), ChooseHw);
