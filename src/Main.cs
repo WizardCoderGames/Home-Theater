@@ -15,8 +15,8 @@ using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("Eric's Home Theater")]
 [assembly: System.Reflection.AssemblyProduct("Eric's Home Theater")]
-[assembly: System.Reflection.AssemblyVersion("1.5.1.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.5.1.0")]
+[assembly: System.Reflection.AssemblyVersion("1.5.2.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.5.2.0")]
 
 namespace Theater
 {
@@ -531,7 +531,39 @@ namespace Theater
 
         public void AskExit()
         {
-            ShowDialog("Exit " + AppInfo.Name + "?", "", new[] { "Exit", "Stay" }, i => { if (i == 0) Close(); });
+            ShowDialog("Exit " + AppInfo.Name + "?", "", new[] { "Exit to desktop", "Restart the PC", "Shut down the PC", "Stay" }, i =>
+            {
+                if (i == 0) Close();
+                else if (i == 1) ConfirmPower(true);
+                else if (i == 2) ConfirmPower(false);
+            });
+        }
+
+        // Restarting or shutting down asks once more and counts down, so a stray press can be cancelled.
+        void ConfirmPower(bool restart)
+        {
+            dialog = new Dialog
+            {
+                Title = (restart ? "Restart" : "Shut down") + " the PC?",
+                Message = "Other open programs will close too, and unsaved work in them may be lost.",
+                Options = new[] { restart ? "Restart now" : "Shut down now", "Cancel" },
+                Expires = DateTime.Now.AddSeconds(15),
+                CountdownFormat = (restart ? "Restarting" : "Shutting down") + " in {0} seconds.",
+                Done = i => { if (i == 0 || i == -2) PowerOff(restart); }   // -2: the countdown ran out
+            };
+            Kick();
+        }
+
+        void PowerOff(bool restart)
+        {
+            try
+            {
+                Player.Stop();
+                // A few seconds' grace lets this app close cleanly (saving settings, restoring the screen resolution).
+                Process.Start(new ProcessStartInfo("shutdown.exe", (restart ? "/r" : "/s") + " /t 5") { UseShellExecute = false, CreateNoWindow = true });
+                Close();
+            }
+            catch (Exception ex) { ShowToast("Couldn't " + (restart ? "restart" : "shut down") + " the PC: " + ex.Message, 5); }
         }
 
         // ---------- opening things ----------

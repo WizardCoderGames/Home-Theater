@@ -956,7 +956,7 @@ namespace Theater
             Add("System", "System info", "CPU, graphics, memory and usage", () => F.Push(new InfoScreen(F)));
             Add("System", "Check for updates", "Version " + Updater.Current + "  \u00B7  " + F.UpdateStatus, () => F.CheckForUpdates(true));
             Add("System", "Automatic updates", F.Cfg.AutoUpdate ? "On" : "Off", () => { F.ToggleAutoUpdate(); Refresh(); });
-            Add("System", "Exit " + AppInfo.Name, "", () => F.Close());
+            Add("System", "Exit " + AppInfo.Name, "Exit, restart or shut down the PC", () => F.AskExit());
             sel = Math.Max(0, Math.Min(sel, items.Count - 1));
             F.Kick();
         }
@@ -1338,7 +1338,8 @@ namespace Theater
         public int Sel;
         public Action<int> Done;
         public DateTime? Expires;      // when set, the dialog cancels itself at this time
-        public bool Countdown = true;  // show "going back in N seconds"
+        public bool Countdown = true;  // show the countdown line
+        public string CountdownFormat = "Going back automatically in {0} seconds.";
         public Bitmap Image;           // drawn 1:1 in screen pixels (used for the QR code)
         public float ImageScale = 1;   // screen pixels per canvas unit when Image was made
         RectangleF[] optRects = new RectangleF[0];
@@ -1348,7 +1349,7 @@ namespace Theater
             using (var dim = new SolidBrush(Color.FromArgb(185, 0, 0, 0))) g.FillRectangle(dim, -2000, -2000, 6000, 6000);
             float w = 960;
             string msg = Message ?? "";
-            if (Expires.HasValue && Countdown) msg += (msg.Length > 0 ? "\n\n" : "") + "Going back automatically in " + Math.Max(0, (int)Math.Ceiling((Expires.Value - DateTime.Now).TotalSeconds)) + " seconds.";
+            if (Expires.HasValue && Countdown) msg += (msg.Length > 0 ? "\n\n" : "") + string.Format(CountdownFormat, Math.Max(0, (int)Math.Ceiling((Expires.Value - DateTime.Now).TotalSeconds)));
             int cols = Cols;
             if (cols == 2) w = 1200;
             var msgSize = g.MeasureString(msg, Ui.F(24), (int)(w - 100));
