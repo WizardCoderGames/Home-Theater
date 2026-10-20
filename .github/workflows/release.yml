@@ -1,0 +1,53 @@
+# Publishes a release whenever main is pushed with a new version number.
+# The version comes from src/Main.cs (AssemblyFileVersion). If a release for that version
+# already exists, nothing happens - so ordinary pushes don't create releases.
+# Installed copies of Eric's Home Theater check the latest release and update themselves.
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the version
+        id: version
+        shell: pwsh
+        run: |
+          $m = [regex]::Match((Get-Content src/Main.cs -Raw), 'AssemblyFileVersion\("(\d+\.\d+\.\d+)')
+          if (-not $m.Success) { throw "No version found in src/Main.cs" }
+          $v = $m.Groups[1].Value
+          "number=$v" >> $env:GITHUB_OUTPUT
+          gh release view "v$v" *> $null
+          "exists=$(if ($LASTEXITCODE -eq 0) { 'yes' } else { 'no' })" >> $env:GITHUB_OUTPUT
+          exit 0
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Build the app and installer
+        if: steps.version.outputs.exists == 'no'
+        shell: cmd
+        run: build_installer.cmd
+
+      - name: Publish the release
+        if: steps.version.outputs.exists == 'no'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES: ${{ github.event.head_commit.message }}
+        run: |
+          $v = "${{ steps.version.outputs.number }}"
+          $exe = "dist/EricsHomeTheater-Setup.exe"
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          Set-Content "$exe.sha256" "$hash  EricsHomeTheater-Setup.exe" -Encoding ascii
+          $notes = if ($env:NOTES) { $env:NOTES } else { "Eric's Home Theater $v" }
+          gh release create "v$v" $exe "$exe.sha256" --title "Eric's Home Theater $v" --notes "$notes"

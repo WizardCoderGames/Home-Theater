@@ -15,8 +15,8 @@ using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("Eric's Home Theater")]
 [assembly: System.Reflection.AssemblyProduct("Eric's Home Theater")]
-[assembly: System.Reflection.AssemblyVersion("1.4.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.4.0.0")]
+[assembly: System.Reflection.AssemblyVersion("1.5.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.5.0.0")]
 
 namespace Theater
 {
