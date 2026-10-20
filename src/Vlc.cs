@@ -7,9 +7,11 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Web.Script.Serialization;
 
@@ -22,6 +24,7 @@ namespace Theater
         public int Volume = 256;
         public int Chapter = -1, Chapters;
         public string Resolution = "", Hdr = "", AudioInfo = "";
+        public double AudioDelay, SubDelay;   // seconds
         public int AudioCount, SubCount;
     }
 
@@ -60,10 +63,12 @@ namespace Theater
                 extraArgs = extra ?? "";
                 if (!File.Exists(exe)) { Error = "VLC wasn't found at " + exe + ". Set its location in Settings."; return false; }
                 port = FreePort();
+                do { rcPort = FreePort(); } while (rcPort == port);
                 pw = Guid.NewGuid().ToString("N");
                 string args = string.Join(" ", new[] {
-                    "--intf=dummy", "--dummy-quiet", "--extraintf=http",
+                    "--intf=dummy", "--dummy-quiet", "--extraintf=http:rc",
                     "--http-host=127.0.0.1", "--http-port=" + port, "--http-password=" + pw,
+                    "--rc-host=127.0.0.1:" + rcPort, "--rc-quiet",
                     "--drawable-hwnd=" + hwnd.ToInt64(),
                     "--no-video-title-show", "--no-mouse-events", "--no-keyboard-events",
                     "--no-one-instance", "--play-and-stop", "--no-loop", "--no-repeat", "--no-random",
@@ -122,8 +127,80 @@ namespace Theater
             Request("command=" + command + (val != null ? "&val=" + Uri.EscapeDataString(val) : ""));
         }
 
-        // Hotkey actions such as "nav-up", "disc-menu", "audio-track", "subtitle-track", "chapter-next".
+        // Hotkey actions such as "nav-up", "disc-menu", "subtitle-text-scale-up", "chapter-next".
         public void Action(string name) { Cmd("key", name); }
+
+        // ---------- audio and subtitle tracks ----------
+        // VLC's web interface can't list tracks, so these use its text control channel (also 127.0.0.1 only).
+
+        int rcPort;
+        readonly object rcLock = new object();
+
+        public class Track { public int Id; public string Name = ""; public bool On; }
+
+        string Rc(string command)
+        {
+            if (rcPort == 0 || !Running) return "";
+            lock (rcLock)
+            {
+                try
+                {
+                    using (var c = new TcpClient())
+                    {
+                        if (!c.ConnectAsync("127.0.0.1", rcPort).Wait(1000)) return "";
+                        var s = c.GetStream();
+                        var cmd = Encoding.UTF8.GetBytes(command + "\n");
+                        s.Write(cmd, 0, cmd.Length);
+                        var sb = new StringBuilder();
+                        var buf = new byte[16384];
+                        var until = DateTime.Now.AddMilliseconds(1500);
+                        // Read until VLC confirms the command ("<command>: returned ...").
+                        while (DateTime.Now < until && sb.ToString().IndexOf("returned", StringComparison.Ordinal) < 0)
+                        {
+                            if (s.DataAvailable) { int n = s.Read(buf, 0, buf.Length); if (n <= 0) break; sb.Append(Encoding.UTF8.GetString(buf, 0, n)); }
+                            else Thread.Sleep(20);
+                        }
+                        return sb.ToString();
+                    }
+                }
+                catch { return ""; }
+            }
+        }
+
+        // kind: "atrack" (audio) or "strack" (subtitles). Includes "Off" (id -1) when VLC offers it.
+        public List<Track> Tracks(string kind)
+        {
+            var list = new List<Track>();
+            if (kind != "atrack" && kind != "strack") return list;
+            foreach (var line in Rc(kind).Split('\n'))
+            {
+                var m = Regex.Match(line.TrimEnd('\r'), @"^\|\s*(-?\d+) - (.*?)( \*)?\s*$");
+                if (!m.Success) continue;
+                list.Add(new Track { Id = int.Parse(m.Groups[1].Value), Name = TrackName(m.Groups[2].Value), On = m.Groups[3].Success });
+            }
+            // Same names (two "English" tracks): number them so they can be told apart.
+            foreach (var g in list.GroupBy(t => t.Name).Where(g => g.Count() > 1))
+            {
+                int i = 1;
+                foreach (var t in g) t.Name += " (" + i++ + ")";
+            }
+            return list;
+        }
+
+        // "Track 2 - [English]" -> "English";  "Ita Ac3 5.1 - [Italian]" -> "Italian Â· Ita Ac3 5.1";  "Disable" -> "Off"
+        static string TrackName(string raw)
+        {
+            if (raw == "Disable") return "Off";
+            var m = Regex.Match(raw, @"^(.*?)\s*-\s*\[(.+)\]$");
+            if (!m.Success) return raw;
+            string desc = m.Groups[1].Value.Trim(), lang = m.Groups[2].Value.Trim();
+            return Regex.IsMatch(desc, @"^Track \d+$") || desc.Length == 0 ? lang : lang + " \u00B7 " + desc;
+        }
+
+        public void SelectTrack(string kind, int id)
+        {
+            if (kind == "atrack" || kind == "strack") Rc(kind + " " + id);
+        }
 
         public void Play(string input)
         {
@@ -146,7 +223,9 @@ namespace Theater
                     Time = Num(d, "time"),
                     Length = Num(d, "length"),
                     Position = Num(d, "position"),
-                    Volume = (int)Num(d, "volume")
+                    Volume = (int)Num(d, "volume"),
+                    AudioDelay = Num(d, "audiodelay"),
+                    SubDelay = Num(d, "subtitledelay")
                 };
                 object o;
                 var info = d.TryGetValue("information", out o) ? o as Dictionary<string, object> : null;

@@ -192,6 +192,30 @@ namespace Theater
                     form.BeginInvoke((Action)(() => form.RemoteText(v ?? "")));
                     Send(ns, 200, "application/json", "{\"ok\":true}");
                     break;
+                case "/api/tracks":
+                    Send(ns, 200, "application/json", form.Player.TracksJson());
+                    break;
+                case "/api/track":
+                    {
+                        string kind; int id;
+                        if (q.TryGetValue("kind", out kind) && q.TryGetValue("id", out v) && int.TryParse(v, out id))
+                            form.BeginInvoke((Action)(() => form.Player.SetTrack(kind, id)));
+                        Send(ns, 200, "application/json", "{\"ok\":true}");
+                    }
+                    break;
+                case "/api/delay":
+                    {
+                        string kind; double sec;
+                        if (q.TryGetValue("kind", out kind) && q.TryGetValue("sec", out v)
+                            && double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out sec))
+                            form.BeginInvoke((Action)(() => form.Player.SetDelay(kind, sec)));
+                        Send(ns, 200, "application/json", "{\"ok\":true}");
+                    }
+                    break;
+                case "/api/subsize":
+                    if (q.TryGetValue("d", out v)) form.BeginInvoke((Action)(() => form.Player.SubtitleSize(v)));
+                    Send(ns, 200, "application/json", "{\"ok\":true}");
+                    break;
                 case "/api/play":
                     if (q.TryGetValue("id", out v)) form.BeginInvoke((Action)(() => form.RemotePlay(v)));
                     Send(ns, 200, "application/json", "{\"ok\":true}");

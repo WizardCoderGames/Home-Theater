@@ -1289,8 +1289,8 @@ namespace Theater
                 case Theater.Act.VolUp: Volume(13); break;
                 case Theater.Act.VolDown: Volume(-13); break;
                 case Theater.Act.Mute: ToggleMute(); break;
-                case Theater.Act.Audio: Hotkey("audio-track"); Flash("Next audio track", -1); break;
-                case Theater.Act.Subs: Hotkey("subtitle-track"); Flash("Next subtitle track", -1); break;
+                case Theater.Act.Audio: CycleTrack("atrack"); break;
+                case Theater.Act.Subs: CycleTrack("strack"); break;
                 case Theater.Act.NextChapter: Hotkey("chapter-next"); Flash("Next chapter", -1); break;
                 case Theater.Act.PrevChapter: Hotkey("chapter-prev"); Flash("Previous chapter", -1); break;
                 case Theater.Act.Menu: if (IsDisc) { Hotkey("disc-menu"); Flash("Disc menu", -1); } else ShowOsd(6); break;
@@ -1397,6 +1397,86 @@ namespace Theater
                 vlc.Post(() => vlc.Cmd("volume", "0"));
                 Flash("Muted", 0);
             }
+        }
+
+        // ---------- audio & subtitles ----------
+
+        static string TrackKind(string k) { return k == "sub" || k == "subs" || k == "strack" ? "strack" : "atrack"; }
+
+        // The TV's A / S keys: go to the next track and say which one is playing now.
+        void CycleTrack(string kind)
+        {
+            var v = F.Vlc;
+            int my = session;
+            v.Post(() =>
+            {
+                var list = v.Tracks(kind);
+                if (kind == "atrack") list = list.Where(t => t.Id >= 0).ToList();   // audio never cycles to "off"
+                string msg;
+                if (list.Count <= 1)
+                    msg = kind == "atrack" ? "This movie has one audio track" : "No subtitles in this movie";
+                else
+                {
+                    int i = list.FindIndex(t => t.On);
+                    var next = list[(i + 1) % list.Count];
+                    v.SelectTrack(kind, next.Id);
+                    msg = (kind == "atrack" ? "Audio: " : "Subtitles: ") + next.Name;
+                }
+                F.BeginInvoke((Action)(() => { if (Active && session == my) Flash(msg, -1); }));
+            });
+        }
+
+        public void SetTrack(string kind, int id)
+        {
+            if (!Active || !started) return;
+            kind = TrackKind(kind);
+            var v = F.Vlc;
+            int my = session;
+            v.Post(() =>
+            {
+                v.SelectTrack(kind, id);
+                var on = v.Tracks(kind).FirstOrDefault(t => t.On);
+                string msg = (kind == "atrack" ? "Audio: " : "Subtitles: ") + (on != null ? on.Name : "Off");
+                F.BeginInvoke((Action)(() => { if (Active && session == my) Flash(msg, -1); }));
+            });
+        }
+
+        // Positive = later. Subtitles showing too early -> a positive subtitle delay.
+        public void SetDelay(string kind, double seconds)
+        {
+            if (!Active || !started) return;
+            bool sub = TrackKind(kind) == "strack";
+            seconds = Math.Max(-30, Math.Min(30, Math.Round(seconds, 2)));
+            if (sub) St.SubDelay = seconds; else St.AudioDelay = seconds;
+            var v = F.Vlc;
+            string val = seconds.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+            v.Post(() => v.Cmd(sub ? "subdelay" : "audiodelay", val));
+            Flash((sub ? "Subtitle timing  " : "Audio timing  ") + (seconds > 0 ? "+" : "") + seconds.ToString("0.0#") + " s", -1);
+        }
+
+        public void SubtitleSize(string direction)
+        {
+            if (!Active || !started) return;
+            Hotkey(direction == "up" ? "subtitle-text-scale-up" : direction == "down" ? "subtitle-text-scale-down" : "subtitle-text-scale-normal");
+            Flash(direction == "up" ? "Subtitles bigger" : direction == "down" ? "Subtitles smaller" : "Subtitles normal size", -1);
+        }
+
+        // For the phone remote: this movie's tracks and timing (called from the remote server's thread).
+        public string TracksJson()
+        {
+            var ser = new JavaScriptSerializer();
+            if (!Active || !started) return ser.Serialize(new Dictionary<string, object> { { "playing", false } });
+            var v = F.Vlc;
+            Func<List<Vlc.Track>, List<Dictionary<string, object>>> pack = l => l.Select(t => new Dictionary<string, object> { { "id", t.Id }, { "name", t.Name }, { "on", t.On } }).ToList();
+            var subs = v.Tracks("strack");
+            return ser.Serialize(new Dictionary<string, object> {
+                { "playing", true },
+                { "title", Item != null ? Item.FullTitle : "" },
+                { "audio", pack(v.Tracks("atrack").Where(t => t.Id >= 0).ToList()) },
+                { "subs", pack(subs.Count > 1 ? subs : new List<Vlc.Track>()) },   // just "Off" means the movie has none
+                { "audioDelay", St.AudioDelay },
+                { "subDelay", St.SubDelay }
+            });
         }
 
         // Shows the phone pairing code over the movie (null hides it).

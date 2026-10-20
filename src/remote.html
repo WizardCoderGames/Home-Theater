@@ -94,6 +94,26 @@
   .card .tt { margin-top: 6px; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .card .yy { font-size: 12px; color: var(--dim); }
 
+  /* audio & subtitles panel */
+  .sheet { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; z-index: 10; }
+  .sheet-card { width: 100%; max-height: 88vh; overflow-y: auto; background: var(--panel); border-radius: 22px 22px 0 0; padding: 18px 18px calc(24px + env(safe-area-inset-bottom)); }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; }
+  .sheet-head b { font-size: 19px; }
+  .sheet-head button { width: 40px; height: 40px; border-radius: 50%; background: var(--panel2); font-size: 17px; }
+  .sheet h3 { margin: 20px 0 8px; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+  .opts { display: flex; flex-direction: column; gap: 8px; }
+  .opt { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 14px; background: var(--panel2); text-align: left; font-size: 16px; }
+  .opt i { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--dim); flex: none; }
+  .opt.on { background: var(--ink); color: #111; font-weight: 650; }
+  .opt.on i { border-color: #111; background: radial-gradient(circle, #111 42%, transparent 46%); }
+  .stepper { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+  .stepper span { flex: 1; color: var(--dim); font-size: 14px; }
+  .stepper button { min-width: 48px; height: 44px; border-radius: 12px; background: var(--panel2); font-size: 20px; font-weight: 700; }
+  .stepper button.small { font-size: 13px; font-weight: 600; padding: 0 12px; }
+  .stepper b { min-width: 70px; text-align: center; font-variant-numeric: tabular-nums; }
+  .note { color: var(--dim); font-size: 13px; margin: 8px 2px 0; line-height: 1.4; }
+  .empty { color: var(--dim); padding: 4px 2px; margin: 0; line-height: 1.45; }
+
   nav { display: flex; background: var(--panel); padding-bottom: env(safe-area-inset-bottom); }
   nav button { flex: 1; padding: 12px 0 14px; display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--dim); font-size: 12px; }
   nav button svg { width: 22px; height: 22px; }
@@ -179,8 +199,8 @@
       </div>
 
       <div class="row">
-        <button class="btn" data-k="audio"><svg><use href="#i-audio"/></svg>Audio</button>
-        <button class="btn" data-k="subs"><svg><use href="#i-cc"/></svg>Subtitles</button>
+        <button class="btn" data-sheet="audio"><svg><use href="#i-audio"/></svg>Audio</button>
+        <button class="btn" data-sheet="subs"><svg><use href="#i-cc"/></svg>Subtitles</button>
         <button class="btn" data-k="stop"><svg><use href="#i-stop"/></svg>Stop</button>
       </div>
 
@@ -195,6 +215,13 @@
       <div id="grid"></div>
     </div>
   </main>
+
+  <div id="sheet" class="sheet hidden">
+    <div class="sheet-card">
+      <div class="sheet-head"><b>Audio &amp; Subtitles</b><button id="sheetClose" aria-label="Close">&#x2715;</button></div>
+      <div id="sheetBody"></div>
+    </div>
+  </div>
 
   <nav>
     <button id="tabRemote" class="on"><svg><use href="#i-remote"/></svg>Remote</button>
@@ -294,6 +321,80 @@
       startEl = null;
     });
   })();
+
+  // ----- audio & subtitles panel -----
+  let tracks = null;
+
+  function fmtDelay(s) {
+    s = Math.round((s || 0) * 100) / 100;
+    return (s > 0 ? '+' : s < 0 ? '\u2212' : '') + Math.abs(s).toString() + ' s';
+  }
+  function optHtml(kind, t) {
+    return '<button class="opt' + (t.on ? ' on' : '') + '" data-track="' + kind + ':' + t.id + '"><i></i>' + esc(t.name) + '</button>';
+  }
+  function stepper(kind, label, val, step) {
+    return '<div class="stepper"><span>' + label + '</span>' +
+      '<button data-kind="' + kind + '" data-step="-' + step + '" aria-label="Earlier">\u2212</button>' +
+      '<b>' + fmtDelay(val) + '</b>' +
+      '<button data-kind="' + kind + '" data-step="' + step + '" aria-label="Later">+</button>' +
+      '<button class="small" data-kind="' + kind + '" data-step="0">Reset</button></div>';
+  }
+
+  function renderSheet() {
+    const b = $('#sheetBody');
+    if (!tracks) { b.innerHTML = '<p class="empty">Loading\u2026</p>'; return; }
+    if (!tracks.playing) { b.innerHTML = '<p class="empty">Start a movie to choose its audio and subtitles.</p>'; return; }
+    let h = '<h3>Audio</h3><div class="opts">';
+    if (!tracks.audio.length) h += '<p class="empty">No audio tracks found.</p>';
+    for (const t of tracks.audio) h += optHtml('audio', t);
+    h += '</div>' + stepper('audio', 'Audio sync', tracks.audioDelay, 0.05) +
+      '<p class="note">Voices come before the lips move? Press +. After? Press \u2212.</p>';
+    h += '<h3>Subtitles</h3><div class="opts">';
+    if (!tracks.subs.length) h += '<p class="empty">This movie has no subtitles. A subtitle file (.srt) with the same name, next to the movie, is picked up automatically.</p>';
+    for (const t of tracks.subs) h += optHtml('sub', t);
+    h += '</div>';
+    if (tracks.subs.length) {
+      h += stepper('sub', 'Subtitle timing', tracks.subDelay, 0.1) +
+        '<p class="note">Subtitles show too early? Press +. Too late? Press \u2212.</p>' +
+        '<div class="stepper"><span>Subtitle size</span>' +
+        '<button data-size="down" aria-label="Smaller">A\u2212</button>' +
+        '<button class="small" data-size="normal">Normal</button>' +
+        '<button data-size="up" aria-label="Bigger">A+</button></div>';
+    }
+    b.innerHTML = h;
+
+    b.querySelectorAll('[data-track]').forEach((el) => el.onclick = () => {
+      buzz();
+      const [kind, id] = el.dataset.track.split(':');
+      (kind === 'audio' ? tracks.audio : tracks.subs).forEach((t) => { t.on = String(t.id) === id; });
+      renderSheet();
+      api('track', { kind, id }, 'POST').catch(() => {});
+      setTimeout(loadTracks, 700);
+    });
+    b.querySelectorAll('[data-step]').forEach((el) => el.onclick = () => {
+      buzz();
+      const kind = el.dataset.kind, step = parseFloat(el.dataset.step), key = kind === 'audio' ? 'audioDelay' : 'subDelay';
+      tracks[key] = step === 0 ? 0 : Math.round((tracks[key] + step) * 100) / 100;
+      renderSheet();
+      api('delay', { kind, sec: tracks[key] }, 'POST').catch(() => {});
+    });
+    b.querySelectorAll('[data-size]').forEach((el) => el.onclick = () => { buzz(); api('subsize', { d: el.dataset.size }, 'POST').catch(() => {}); });
+  }
+
+  async function loadTracks() {
+    try { tracks = await api('tracks'); } catch (e) { tracks = { playing: false }; }
+    if (!$('#sheet').classList.contains('hidden')) renderSheet();
+  }
+  function openSheet() {
+    tracks = null;
+    $('#sheet').classList.remove('hidden');
+    renderSheet();
+    loadTracks();
+  }
+  function closeSheet() { $('#sheet').classList.add('hidden'); }
+  $('#sheetClose').onclick = closeSheet;
+  $('#sheet').addEventListener('click', (e) => { if (e.target.id === 'sheet') closeSheet(); });
+  document.querySelectorAll('[data-sheet]').forEach((b) => b.addEventListener('click', () => { buzz(); openSheet(); }));
 
   // ----- search on the TV -----
   let searchT = null;
