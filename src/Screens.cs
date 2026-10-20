@@ -949,6 +949,7 @@ namespace Theater
             Add("Phone & network", "Phone remote", F.RemoteUrl + "   ·   code " + c.Code, () => F.ShowDialog("Phone remote",
                 "Scan the QR code with your phone's camera (same Wi-Fi), or open " + F.RemoteUrl + " in its browser. A code pops up here to type on the phone.\n\nTip: in Chrome, use ⋮ → Add to Home screen so it opens like an app.",
                 new[] { "Done", "Make a new code" }, i => { if (i == 1) { c.Code = Settings.NewCode(); c.Save(); Refresh(); } }));
+            Add("Phone & network", "Phone QR popup", c.PhonePrompt ? "At start, and when the phone disconnects" : "Off", () => { c.PhonePrompt = !c.PhonePrompt; c.Save(); Refresh(); });
             Add("Phone & network", "Wi-Fi", wifi == null ? "Checking…" : wifi.Connected ? wifi.Ssid + (wifi.Signal != "" ? "  ·  " + wifi.Signal + " signal" : "") + (c.WifiAuto != "" ? "  ·  auto-connect on" : "") : "Not connected", ChooseWifi);
             Add("Phone & network", "Start with Windows", startup ? "On" : "Off", ToggleStartup);
 
@@ -1338,6 +1339,8 @@ namespace Theater
         public Action<int> Done;
         public DateTime? Expires;      // when set, the dialog cancels itself at this time
         public bool Countdown = true;  // show "going back in N seconds"
+        public Bitmap Image;           // drawn 1:1 in screen pixels (used for the QR code)
+        public float ImageScale = 1;   // screen pixels per canvas unit when Image was made
         RectangleF[] optRects = new RectangleF[0];
 
         public void Draw(Graphics g)
@@ -1350,6 +1353,8 @@ namespace Theater
             if (cols == 2) w = 1200;
             var msgSize = g.MeasureString(msg, Ui.F(24), (int)(w - 100));
             float bigH = Big != null ? 130 : 0;
+            float imgW = Image != null ? Image.Width / ImageScale : 0, imgH = Image != null ? Image.Height / ImageScale + 40 : 0;
+            bigH += imgH;
             float optH = cols == 2 ? 54 : 62, gap = 10;
             int rowsN = (Options.Length + cols - 1) / cols;
             float h = 60 + 56 + msgSize.Height + bigH + 36 + rowsN * (optH + gap) + 30;
@@ -1358,10 +1363,17 @@ namespace Theater
             Ui.Text(g, Title, Ui.F(38, 2), Ui.Ink, new RectangleF(r.X + 50, r.Y + 44, w - 100, 56));
             Ui.Text(g, msg, Ui.F(24), Color.FromArgb(200, 204, 214), new RectangleF(r.X + 50, r.Y + 110, w - 100, msgSize.Height + 10), StringAlignment.Near, StringAlignment.Near, true);
             float y = r.Y + 110 + msgSize.Height + 20;
+            if (Image != null)
+            {
+                float ix = r.X + (w - imgW) / 2;
+                Ui.FillRound(g, Color.White, new RectangleF(ix - 8, y + 4, imgW + 16, imgW + 16), 18);
+                Gfx.Blit(g, Image, ix, y + 12);
+                y += imgH;
+            }
             if (Big != null)
             {
-                Ui.Text(g, Big, Ui.F(104, 2), Ui.Accent, new RectangleF(r.X, y, w, bigH), StringAlignment.Center, StringAlignment.Center);
-                y += bigH;
+                Ui.Text(g, Big, Ui.F(104, 2), Ui.Accent, new RectangleF(r.X, y, w, 130), StringAlignment.Center, StringAlignment.Center);
+                y += 130;
             }
             y += 10;
             optRects = new RectangleF[Options.Length];

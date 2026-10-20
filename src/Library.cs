@@ -32,6 +32,7 @@ namespace Theater
         public string WifiAuto = "";         // saved Wi-Fi network to connect to at startup
         public bool AutoUpdate = true;       // download and install new versions from GitHub
         public bool UsbAuto = true;          // add movies from USB drives while they're plugged in
+        public bool PhonePrompt = true;      // show the phone QR code at start and when the phone disconnects
 
         // Extra VLC options for the hardware acceleration and renderer choices.
         public string VlcArgs()
@@ -74,6 +75,7 @@ namespace Theater
                             case "wifiauto": s.WifiAuto = v; break;
                             case "autoupdate": s.AutoUpdate = v != "0"; break;
                             case "usbauto": s.UsbAuto = v != "0"; break;
+                            case "phoneprompt": s.PhonePrompt = v != "0"; break;
                         }
                     }
                 }
@@ -136,6 +138,7 @@ namespace Theater
                 lines.Add("wifiauto=" + WifiAuto);
                 lines.Add("autoupdate=" + (AutoUpdate ? "1" : "0"));
                 lines.Add("usbauto=" + (UsbAuto ? "1" : "0"));
+                lines.Add("phoneprompt=" + (PhonePrompt ? "1" : "0"));
                 File.WriteAllLines(FilePath, lines);
             }
             catch { }

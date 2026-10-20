@@ -20,6 +20,8 @@ namespace Theater
         TcpListener listener;
         byte[] page;
         public string Error;
+        // The open remote page checks in every second, so this tells whether a phone is connected.
+        public DateTime LastPhone = DateTime.MinValue;
         // Phones that asked to pair, and when each last asked (so refreshing the page doesn't spam the TV).
         readonly Dictionary<string, DateTime> pairAsked = new Dictionary<string, DateTime>();
 
@@ -171,6 +173,7 @@ namespace Theater
                 Send(ns, 401, "application/json", "{\"error\":\"code\"}");
                 return;
             }
+            LastPhone = DateTime.Now;
             string v;
             switch (path)
             {

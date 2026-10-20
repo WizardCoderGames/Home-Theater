@@ -15,8 +15,8 @@ using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("Eric's Home Theater")]
 [assembly: System.Reflection.AssemblyProduct("Eric's Home Theater")]
-[assembly: System.Reflection.AssemblyVersion("1.5.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.5.0.0")]
+[assembly: System.Reflection.AssemblyVersion("1.5.1.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.5.1.0")]
 
 namespace Theater
 {
@@ -65,7 +65,9 @@ namespace Theater
         string downloadedSetup;
         bool updateBusy, updatePostponed;
         readonly Timer updateTimer = new Timer();
-        Dialog pairDialog;
+        Dialog pairDialog, qrDialog;
+        bool phoneWasConnected, qrShownThisGap, startupQrDone;
+        readonly DateTime startedAt = DateTime.Now;
         string displayDevice;
         bool serverOk;
         FormWindowState lastState = FormWindowState.Normal;
@@ -345,6 +347,58 @@ namespace Theater
             })));
         }
 
+        // ---------- phone QR popup ----------
+
+        public bool PhoneConnected { get { return serverOk && server != null && (DateTime.Now - server.LastPhone).TotalSeconds < 6; } }
+
+        // Shows the QR code a few seconds after start if no phone is connected, and again when a
+        // connected phone's remote has been closed for 30 seconds. Closes itself when a phone connects.
+        void UpdatePhonePrompt()
+        {
+            if (!serverOk || !RemoteUrl.Contains(":")) return;
+            if (PhoneConnected)
+            {
+                phoneWasConnected = true;
+                startupQrDone = true;
+                qrShownThisGap = false;
+                if (qrDialog != null && dialog == qrDialog) { CloseQr(); dialog = null; Kick(); }
+                return;
+            }
+            if (!Cfg.PhonePrompt || dialog != null || Player.Active || WindowState == FormWindowState.Minimized) return;
+            bool startup = !startupQrDone && (DateTime.Now - startedAt).TotalSeconds > 4;
+            bool lost = phoneWasConnected && !qrShownThisGap && (DateTime.Now - server.LastPhone).TotalSeconds > 30;
+            if (startup || lost)
+            {
+                startupQrDone = true;
+                qrShownThisGap = true;
+                ShowPhoneQr(lost);
+            }
+        }
+
+        void ShowPhoneQr(bool reconnect)
+        {
+            var modules = Qr.Encode("http://" + RemoteUrl + "/");
+            if (modules == null || scale <= 0) return;
+            int px = Math.Max(2, (int)(380 * scale / (modules.GetLength(0) + 8)));
+            qrDialog = new Dialog
+            {
+                Title = reconnect ? "Phone remote disconnected" : "Use your phone as the remote",
+                Message = "Point your phone's camera at this code (same Wi-Fi), or open " + RemoteUrl + " in its browser. A pairing code pops up here next.",
+                Image = Qr.Render(modules, px, Color.Black, Color.White),
+                ImageScale = scale,
+                Options = new[] { "Not now" },
+                Done = i => CloseQr()
+            };
+            dialog = qrDialog;
+            Kick();
+        }
+
+        void CloseQr()
+        {
+            if (qrDialog != null && qrDialog.Image != null) qrDialog.Image.Dispose();
+            qrDialog = null;
+        }
+
         // ---------- phone pairing ----------
 
         // A phone opened the remote page: show the code it needs.
@@ -352,7 +406,8 @@ namespace Theater
         {
             if (WindowState == FormWindowState.Minimized) return;
             if (Player.Active) { Player.ShowCode(Cfg.Code); return; }
-            if (dialog != null && dialog != pairDialog) return;   // don't cover a question that's waiting for an answer
+            if (dialog != null && dialog != pairDialog && dialog != qrDialog) return;   // don't cover a question that's waiting for an answer
+            if (dialog != null && dialog == qrDialog) CloseQr();
             pairDialog = new Dialog
             {
                 Title = "Connect your phone",
@@ -796,6 +851,7 @@ namespace Theater
                 else if (slowTicks % 4 == 0 && dialog.Countdown) Invalidate();
             }
             if (Current is InfoScreen && slowTicks % 4 == 0) Invalidate();
+            if (slowTicks % 4 == 0) UpdatePhonePrompt();
             if (downloadedSetup != null && !updatePostponed && dialog == null && slowTicks % 8 == 0) OfferInstall();
             // Repaint only what changes: new thumbnails, the clock (once a minute), the search caret, toasts.
             if (thumbsDirty && (DateTime.Now - lastThumbPaint).TotalMilliseconds > 400)
