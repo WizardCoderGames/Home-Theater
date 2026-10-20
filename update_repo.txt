@@ -1,0 +1,3 @@
+# The GitHub repository that publishes updates, as owner/name.
+# Leave the line below empty to turn update checks off. Rebuild after changing it.
+DarkUndeadSpawn/Erics-Home-Theater

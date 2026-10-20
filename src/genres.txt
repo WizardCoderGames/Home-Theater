@@ -1,0 +1,190 @@
+# Built-in genres for Eric's Home Theater.
+# Format:  Title | Year (optional) | Genre, Genre, ...
+# Titles match the names shown in the app (case and punctuation don't matter).
+# Genres you set in the app (Menu > Set genres) are saved separately and win over this list.
+
+The 6th Day | 2000 | Action, Sci-Fi
+Abigail | 2024 | Horror, Creature Features, Horror Comedy
+The Addams Family | 1991 | Comedy, Family & Animation, Fantasy
+Addams Family Values | 1993 | Comedy, Family & Animation, Fantasy
+Alita Battle Angel | 2019 | Action, Sci-Fi
+An American Werewolf In London | 1981 | Horror, Creature Features, Horror Comedy
+The Animal | 2001 | Comedy
+Arachnophobia | 1990 | Horror, Creature Features, Horror Comedy
+Avengers collection | | Superhero, Action, Sci-Fi
+Bedazzled | 2000 | Comedy, Fantasy
+The Beekeeper | 2024 | Action, Thriller
+Big Daddy | 1999 | Comedy
+Billy Madison | 1995 | Comedy
+Black Friday | 2021 | Horror, Horror Comedy, Creature Features
+The Black Phone | 2022 | Horror, Thriller
+Black Phone 2 | 2025 | Horror, Thriller
+Black Widow | 2021 | Superhero, Action
+Blade | 1998 | Superhero, Action, Horror, Creature Features
+Borat | 2006 | Comedy
+Born in East L A | | Comedy
+Brainscan | 1994 | Horror, Sci-Fi, Thriller
+Brivido - Maximum Overdrive | 1986 | Horror, Sci-Fi
+Maximum Overdrive | 1986 | Horror, Sci-Fi
+The Brothers Grimsby | 2016 | Comedy, Action
+Burial Ground | 1981 | Horror, Zombies
+The Cabin In The Woods | | Horror, Horror Comedy, Creature Features
+The Cable Guy | 1996 | Comedy, Thriller
+Can't Buy Me Love | 1987 | Comedy
+Candyman | 2021 | Horror, Slashers
+Coming to America | 1988 | Comedy
+courage the cowardly dog season 1 | | TV Series, Family & Animation, Horror Comedy
+Courage the Cowardly Dog | | TV Series, Family & Animation, Horror Comedy
+Creepshow | 1982 | Horror, Horror Comedy
+Crimewave RingSåMördarVi! | 1985 | Comedy, Crime
+Crimewave | 1985 | Comedy, Crime
+Dark Shadows | 2012 | Comedy, Fantasy, Horror Comedy, Creature Features
+Day of the Dead | 1985 | Horror, Zombies
+Day Shift | 2022 | Action, Horror Comedy, Creature Features
+Deadpool And Wolverine | 2024 | Superhero, Action, Comedy
+Demons | 1985 | Horror, Creature Features
+Demons | | Horror, Creature Features
+Demons 2 | 1986 | Horror, Creature Features
+The Dentist | 1996 | Horror, Slashers
+Deuce Bigalow Male Gigolo | 1999 | Comedy
+Disturbia | 2007 | Thriller
+Doctor Strange in the Multiverse of Madness | 2022 | Superhero, Action, Fantasy
+Dogma | 1999 | Comedy, Fantasy
+Don't Tell Mom The Babysitter's Dead | 1991 | Comedy
+Dragon Ball Super - Super Hero | | Action, Family & Animation
+Duplex | 2003 | Comedy
+Earnest Movies | | Comedy, Family & Animation
+Ernest Movies | | Comedy, Family & Animation
+Elemental | 2023 | Family & Animation
+The Faculty | 1998 | Horror, Sci-Fi, Creature Features
+Falling Down | 1993 | Drama, Thriller, Crime
+Fast and Furious Presents Hobbs and Shaw | 2019 | Action
+Hobbs and Shaw | 2019 | Action
+Finch | 2021 | Sci-Fi, Drama
+Fire In The Sky | 1993 | Sci-Fi, Drama, Thriller
+Five Nights at Freddys 2 | 2025 | Horror
+Freaky | 2020 | Horror, Slashers, Horror Comedy
+Fright Night | 1985 | Horror, Creature Features, Horror Comedy
+The Furious | 2025 | Action
+Glass | 2019 | Thriller, Superhero, Drama
+Godzilla vs Kong | 2021 | Action, Sci-Fi, Creature Features
+Godzilla X Kong The New Empire | 2024 | Action, Sci-Fi, Creature Features
+Grandma's Boy | 2006 | Comedy
+Guardians of the Galaxy Vol 3 | 2023 | Superhero, Action, Sci-Fi, Comedy
+Halloween | 1978 | Horror, Slashers
+Halloween | 2018 | Horror, Slashers
+Halloween Kills | 2021 | Horror, Slashers
+Happy Death Day | 2017 | Horror, Slashers, Horror Comedy
+Happy Death Day 2U | 2019 | Horror, Slashers, Horror Comedy, Sci-Fi
+Happy Gilmore | 1996 | Comedy
+Heavyweights | 1995 | Comedy, Family & Animation
+The Hot Chick | 2002 | Comedy
+I Am a Hero | 2016 | Horror, Zombies, Action
+I Know What You Did Last Summer | 2025 | Horror, Slashers
+Idle Hands - Jessica Alba Horror | 1999 | Horror, Horror Comedy
+Idle Hands | 1999 | Horror, Horror Comedy
+Intruder | 1989 | Horror, Slashers
+The Invitation | 2022 | Horror, Thriller, Creature Features
+IT Chapter 1 And 2 2017-2019 | | Horror, Creature Features
+It Chapter Two | 2019 | Horror, Creature Features
+It | 2017 | Horror, Creature Features
+Jeepers Creepers | 2001 | Horror, Creature Features
+John Wick Chapter 3 - Parabellum | 2019 | Action, Crime, Thriller
+Killer Klowns From Outer Space | 1988 | Horror, Sci-Fi, Horror Comedy, Creature Features
+Land of the Dead | 2005 | Horror, Zombies
+The Last Voyage of the Demeter | 2023 | Horror, Creature Features
+Little Fockers | 2010 | Comedy
+The Lost Boys | 1987 | Horror, Creature Features, Horror Comedy
+M3GAN | 2022 | Horror, Sci-Fi, Thriller
+Masters Of The Universe | 2026 | Action, Fantasy, Sci-Fi
+Meet The Fockers | | Comedy
+Meet The Parents | | Comedy
+The Midnight Meat Train | 2008 | Horror, Thriller
+The Money Pit | 1986 | Comedy
+The Monster Squad | 1987 | Horror, Creature Features, Horror Comedy, Family & Animation
+Morbius | 2022 | Superhero, Action, Creature Features
+Mortal Kombat | 2021 | Action, Fantasy
+Mr Deeds | 2002 | Comedy
+Murder Party - Horror | 2007 | Horror, Horror Comedy
+Murder Party | 2007 | Horror, Horror Comedy
+Night Of The Living Dead | 1990 | Horror, Zombies
+Night Of The Living Dead | 1968 | Horror, Zombies
+Obsession | 2025 | Horror, Thriller
+Old | 2021 | Thriller, Horror
+The Pest | 1997 | Comedy
+Ready Player One | 2018 | Sci-Fi, Action
+Red Heat | 1988 | Action, Crime
+Renfield | 2023 | Horror Comedy, Action, Creature Features
+The Return of the Living Dead | 1985 | Horror, Zombies, Horror Comedy
+Return Of The Living Dead II | 1988 | Horror, Zombies, Horror Comedy
+Return Of The Living Dead III | 1993 | Horror, Zombies
+Richie Rich 1994 | 1994 | Comedy, Family & Animation
+Richie Rich | 1994 | Comedy, Family & Animation
+The Running Man | 1987 | Action, Sci-Fi
+Scary Movie | | Comedy, Horror Comedy
+Scoob | 2020 | Family & Animation, Comedy
+Scooby Doo Movies | | Family & Animation, Horror Comedy
+Scooby Doo, Where Are You | | TV Series, Family & Animation
+Scream | 2022 | Horror, Slashers
+scream 4 | 2011 | Horror, Slashers
+Scream 7 | 2026 | Horror, Slashers
+Searching | 2018 | Thriller, Drama
+Senseless | 1998 | Comedy
+Shang Chi and the Legend of the Ten Rings | 2021 | Superhero, Action, Fantasy
+Shanghai Knights | 2003 | Action, Comedy
+Shanghai Noon | 2000 | Action, Comedy
+Shaun of the Dead | 2004 | Horror, Comedy, Horror Comedy, Zombies
+Shrimp on the Barbie | | Comedy
+Sick | 2022 | Horror, Slashers, Thriller
+Silent Night Deadly Night | 2025 | Horror, Slashers
+Silent Night, Deadly Night | 1984 | Horror, Slashers
+Silver Bullet | 1985 | Horror, Creature Features
+Slackers | 2002 | Comedy
+Sleepaway Camp | 1983 | Horror, Slashers
+Sleepy Hollow | 1999 | Horror, Fantasy
+So I Married An Axe Murderer | 1993 | Comedy
+sonic the hedgehog | 2020 | Family & Animation, Action, Comedy
+Spawn | 1997 | Superhero, Action, Horror
+Spider-Man Across The Spider-Verse | 2023 | Superhero, Family & Animation, Action
+Spider-Man Far From Home | 2019 | Superhero, Action
+Spider-Man Homecoming | 2017 | Superhero, Action
+Spider-Man Into the Spider-Verse | 2018 | Superhero, Family & Animation, Action
+Spider-Man No Way Home | 2021 | Superhero, Action
+Split | 2016 | Thriller, Horror
+The SpongeBob Movie Sponge on the Run | 2020 | Family & Animation, Comedy
+Step Brothers | 2008 | Comedy
+Strays | 2023 | Comedy
+Surf Ninjas | 1993 | Comedy, Action, Family & Animation
+Suspiria | 1977 | Horror
+Tales From The Crypt S01-S07 Complete | | TV Series, Horror
+Tales From The Crypt | | TV Series, Horror
+Terminator Dark Fate | 2019 | Action, Sci-Fi
+Terrifier 2 | 2022 | Horror, Slashers
+The Texas Chainsaw Massacre 2 UNCUT | 1986 | Horror, Slashers, Horror Comedy
+The Texas Chainsaw Massacre 2 | 1986 | Horror, Slashers, Horror Comedy
+Theres Something About Mary | 1998 | Comedy
+They Live | 1988 | Sci-Fi, Action, Horror
+Trading Places | 1983 | Comedy
+Train to Busan 2 Peninsula | 2020 | Horror, Zombies, Action
+Transformers Rise of the Beasts | 2023 | Action, Sci-Fi
+Trap | 2024 | Thriller
+Trick 'r Treat | 2007 | Horror, Horror Comedy
+Trojan War | 1997 | Comedy
+The Truman Show | 1998 | Comedy, Drama, Sci-Fi
+Underworld | 2003 | Action, Horror, Creature Features
+Underworld Blood Wars | 2016 | Action, Horror, Creature Features
+Underworld Blood Wars T00-1 | | Action, Horror, Creature Features
+UnderworldAwakening | | Action, Horror, Creature Features
+Underworld Awakening | 2012 | Action, Horror, Creature Features
+Unleashed | 2005 | Action, Crime, Drama
+Venom Let There Be Carnage | 2021 | Superhero, Action, Sci-Fi
+Venom | 2018 | Superhero, Action, Sci-Fi
+The Void | 2016 | Horror, Creature Features
+Wallace And Gromit The Complete Collection | | Family & Animation, Comedy
+Wallace And Gromit The Curse Of The Were-Rabbit | 2005 | Family & Animation, Comedy, Creature Features
+The Wedding Singer | 1998 | Comedy
+Weird Science | 1985 | Comedy, Sci-Fi
+Shes All That | 1999 | Comedy
+She's All That | 1999 | Comedy
+Zombieland Double Tap | 2019 | Horror, Comedy, Horror Comedy, Zombies, Action
+zoolander | 2001 | Comedy

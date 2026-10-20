@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b0c10">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon.svg">
+<title>Eric's Home Theater</title>
+<style>
+  :root {
+    --bg: #0b0c10; --panel: #181a21; --panel2: #262933; --ink: #f2f2f6; --dim: #969aa8; --accent: #ffb020;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { overscroll-behavior: none; user-select: none; -webkit-user-select: none; }
+  button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; touch-action: manipulation; }
+  .hidden { display: none !important; }
+
+  /* pairing */
+  #pair { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 24px; text-align: center; gap: 18px; }
+  .logo { width: 64px; height: 64px; border-radius: 18px; background: var(--accent); display: grid; place-items: center; }
+  .logo svg { width: 28px; height: 28px; }
+  #pair h1 { margin: 6px 0 0; font-size: 26px; }
+  #pair p { margin: 0; color: var(--dim); line-height: 1.45; max-width: 320px; }
+  #codeInput { width: 200px; font-size: 40px; letter-spacing: 14px; text-align: center; padding: 12px 0 12px 14px; border-radius: 16px; border: 2px solid var(--panel2); background: var(--panel); color: var(--ink); outline: none; }
+  #codeInput:focus { border-color: var(--accent); }
+  .primary { background: var(--accent); color: #111; font-weight: 700; padding: 14px 34px; border-radius: 999px; font-size: 18px; }
+  #pairErr { color: #ff7a6b; min-height: 20px; }
+
+  /* app */
+  #app { display: flex; flex-direction: column; height: 100%; }
+  header { display: flex; align-items: center; gap: 10px; padding: calc(14px + env(safe-area-inset-top)) 18px 8px; }
+  header .logo { width: 34px; height: 34px; border-radius: 10px; }
+  header .logo svg { width: 15px; height: 15px; }
+  header h1 { font-size: 20px; margin: 0; flex: 1; }
+  #conn { font-size: 13px; color: var(--dim); display: flex; align-items: center; gap: 6px; }
+  #conn i { width: 8px; height: 8px; border-radius: 50%; background: #e05555; display: inline-block; }
+  #conn.on i { background: #3dd27a; }
+
+  #now { margin: 6px 16px 0; padding: 12px 14px; border-radius: 16px; background: var(--panel); }
+  #now .t { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #now .bar { height: 5px; border-radius: 3px; background: var(--panel2); margin: 10px 0 6px; overflow: hidden; }
+  #now .bar div { height: 100%; width: 0; background: var(--accent); }
+  #now .times { display: flex; justify-content: space-between; color: var(--dim); font-size: 13px; font-variant-numeric: tabular-nums; }
+  #focus { margin: 6px 18px 0; color: var(--dim); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 18px; }
+
+  main { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .view { padding: 10px 16px 24px; }
+
+  /* remote */
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 14px auto; max-width: 360px; }
+  .btn { background: var(--panel); border-radius: 18px; height: 58px; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 12px; color: var(--dim); }
+  .btn svg { width: 22px; height: 22px; color: var(--ink); }
+  .btn:active, .key:active, .round:active { filter: brightness(1.6); transform: scale(.97); }
+  .round { width: 64px; height: 64px; border-radius: 50%; background: var(--panel); display: grid; place-items: center; }
+  .round svg { width: 26px; height: 26px; }
+  .round.big { width: 84px; height: 84px; background: var(--ink); color: #111; }
+  .round.big svg { width: 34px; height: 34px; }
+
+  #pad { position: relative; width: min(78vw, 300px); aspect-ratio: 1; margin: 8px auto 4px; border-radius: 50%; background: var(--panel); touch-action: none; }
+  #pad .key { position: absolute; width: 33%; height: 33%; display: grid; place-items: center; border-radius: 50%; }
+  #pad .key svg { width: 30px; height: 30px; color: var(--ink); }
+  #pad .up { top: 2%; left: 33.5%; } #pad .down { bottom: 2%; left: 33.5%; }
+  #pad .left { left: 2%; top: 33.5%; } #pad .right { right: 2%; top: 33.5%; }
+  #pad .ok { left: 31%; top: 31%; width: 38%; height: 38%; background: var(--panel2); font-weight: 750; font-size: 20px; }
+  .hint { text-align: center; color: var(--dim); font-size: 12px; margin-top: 2px; }
+
+  .rocker { display: flex; background: var(--panel); border-radius: 999px; overflow: hidden; flex: 1.4; height: 58px; }
+  .rocker button { flex: 1; display: grid; place-items: center; }
+  .rocker button + button { border-left: 1px solid var(--panel2); }
+  .rocker svg { width: 22px; height: 22px; }
+
+  .search { display: flex; gap: 10px; max-width: 360px; margin: 18px auto 0; }
+  .search input, #filter { flex: 1; min-width: 0; font-size: 16px; padding: 14px 16px; border-radius: 14px; border: 2px solid transparent; background: var(--panel); color: var(--ink); outline: none; }
+  .search input:focus, #filter:focus { border-color: var(--accent); }
+
+  /* library */
+  #crumb { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  #crumb button { background: var(--panel); border-radius: 12px; padding: 8px 12px; font-size: 14px; }
+  #crumb span { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #filter { width: 100%; margin-bottom: 14px; }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+  .card { text-align: left; }
+  .card .art { position: relative; aspect-ratio: 16/9; border-radius: 12px; overflow: hidden; background: linear-gradient(135deg, #3a245c, #161228); display: grid; place-items: center; }
+  .card .art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .card .art .ph { padding: 8px; font-weight: 650; font-size: 14px; text-align: center; color: #fff; opacity: .9; }
+  .card .badges { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; }
+  .card .badges b { font-size: 10px; padding: 3px 6px; border-radius: 5px; background: var(--accent); color: #111; }
+  .card .badges b.h { background: #fff; }
+  .card .count { position: absolute; top: 6px; left: 6px; font-size: 10px; padding: 3px 6px; border-radius: 5px; background: rgba(0,0,0,.75); }
+  .card .prog { position: absolute; left: 0; bottom: 0; height: 4px; background: var(--accent); }
+  .card .tt { margin-top: 6px; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .yy { font-size: 12px; color: var(--dim); }
+
+  nav { display: flex; background: var(--panel); padding-bottom: env(safe-area-inset-bottom); }
+  nav button { flex: 1; padding: 12px 0 14px; display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--dim); font-size: 12px; }
+  nav button svg { width: 22px; height: 22px; }
+  nav button.on { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></symbol>
+    <symbol id="i-pp" viewBox="0 0 24 24"><path fill="currentColor" d="M4 5.5v13a1 1 0 0 0 1.5.86l8-6.5a1 1 0 0 0 0-1.72l-8-6.5A1 1 0 0 0 4 5.5zM15 5h2.5v14H15zM19.5 5H22v14h-2.5z"/></symbol>
+    <symbol id="i-rew" viewBox="0 0 24 24"><path fill="currentColor" d="M11 6v12L2.5 12zM21.5 6v12L13 12z"/></symbol>
+    <symbol id="i-ff" viewBox="0 0 24 24"><path fill="currentColor" d="M13 6v12l8.5-6zM2.5 6v12L11 12z"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M6 15l6-6 6 6"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" d="M3.5 10.5L12 3.5l8.5 7V20a1 1 0 0 1-1 1h-5v-6h-5v6h-5a1 1 0 0 1-1-1z"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.2"/><path stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M12 11v6M12 7.5v.01"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-volup" viewBox="0 0 24 24"><path fill="currentColor" d="M4 9h4l5-4v14l-5-4H4z"/><path stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M16.5 12h5M19 9.5v5"/></symbol>
+    <symbol id="i-voldown" viewBox="0 0 24 24"><path fill="currentColor" d="M4 9h4l5-4v14l-5-4H4z"/><path stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M16.5 12h5"/></symbol>
+    <symbol id="i-mute" viewBox="0 0 24 24"><path fill="currentColor" d="M4 9h4l5-4v14l-5-4H4z"/><path stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M16.5 9.5l5 5M21.5 9.5l-5 5"/></symbol>
+    <symbol id="i-audio" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5" fill="currentColor"/><circle cx="16.5" cy="16" r="2.5" fill="currentColor"/></symbol>
+    <symbol id="i-cc" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2.2"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M10.5 10.2a2.3 2.3 0 1 0 0 3.6M17 10.2a2.3 2.3 0 1 0 0 3.6"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></symbol>
+    <symbol id="i-remote" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="8" r="2" fill="currentColor"/><path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M10 13h4M10 16.5h4"/></symbol>
+    <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path stroke="currentColor" stroke-width="2" d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></symbol>
+  </defs>
+</svg>
+
+<section id="pair" class="hidden">
+  <div class="logo"><svg viewBox="0 0 24 24"><path fill="#0b0c10" d="M7 4.5v15l12.5-7.5z"/></svg></div>
+  <h1>Eric's Home Theater</h1>
+  <p id="pairMsg">A code just popped up on the TV. Type it here to use this phone as the remote.</p>
+  <input id="codeInput" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="0000">
+  <button class="primary" id="pairBtn">Connect</button>
+  <div id="pairErr"></div>
+</section>
+
+<section id="app" class="hidden">
+  <header>
+    <div class="logo"><svg viewBox="0 0 24 24"><path fill="#0b0c10" d="M7 4.5v15l12.5-7.5z"/></svg></div>
+    <h1>Eric's Home Theater</h1>
+    <div id="conn"><i></i><span>Connecting</span></div>
+  </header>
+  <div id="now" class="hidden">
+    <div class="t" id="nowTitle"></div>
+    <div class="bar"><div id="nowBar"></div></div>
+    <div class="times"><span id="nowTime"></span><span id="nowLeft"></span></div>
+  </div>
+  <div id="focus"></div>
+
+  <main>
+    <div id="remoteView" class="view">
+      <div class="row">
+        <button class="btn" data-k="back"><svg><use href="#i-back"/></svg>Back</button>
+        <button class="btn" data-k="home"><svg><use href="#i-home"/></svg>Home</button>
+        <button class="btn" data-k="menu"><svg><use href="#i-menu"/></svg>Menu</button>
+        <button class="btn" data-k="info"><svg><use href="#i-info"/></svg>Info</button>
+      </div>
+
+      <div id="pad">
+        <button class="key up" data-k="up" data-repeat><svg><use href="#i-up"/></svg></button>
+        <button class="key down" data-k="down" data-repeat><svg style="transform:rotate(180deg)"><use href="#i-up"/></svg></button>
+        <button class="key left" data-k="left" data-repeat><svg style="transform:rotate(-90deg)"><use href="#i-up"/></svg></button>
+        <button class="key right" data-k="right" data-repeat><svg style="transform:rotate(90deg)"><use href="#i-up"/></svg></button>
+        <button class="key ok" data-k="ok">OK</button>
+      </div>
+      <div class="hint">Tap the arrows, or swipe anywhere on the circle</div>
+
+      <div class="row">
+        <button class="round" data-k="rew" data-repeat aria-label="Rewind"><svg><use href="#i-rew"/></svg></button>
+        <button class="round big" data-k="playpause" aria-label="Play or pause"><svg><use href="#i-pp"/></svg></button>
+        <button class="round" data-k="ff" data-repeat aria-label="Fast forward"><svg><use href="#i-ff"/></svg></button>
+      </div>
+
+      <div class="row">
+        <div class="rocker">
+          <button data-k="voldown" data-repeat aria-label="Volume down"><svg><use href="#i-voldown"/></svg></button>
+          <button data-k="mute" aria-label="Mute"><svg><use href="#i-mute"/></svg></button>
+          <button data-k="volup" data-repeat aria-label="Volume up"><svg><use href="#i-volup"/></svg></button>
+        </div>
+      </div>
+
+      <div class="row">
+        <button class="btn" data-k="audio"><svg><use href="#i-audio"/></svg>Audio</button>
+        <button class="btn" data-k="subs"><svg><use href="#i-cc"/></svg>Subtitles</button>
+        <button class="btn" data-k="stop"><svg><use href="#i-stop"/></svg>Stop</button>
+      </div>
+
+      <div class="search">
+        <input id="tvSearch" type="search" placeholder="Search on the TV&hellip;" autocomplete="off" enterkeyhint="search">
+      </div>
+    </div>
+
+    <div id="libView" class="view hidden">
+      <div id="crumb" class="hidden"><button id="crumbBack">&larr; All movies</button><span id="crumbTitle"></span></div>
+      <input id="filter" type="search" placeholder="Filter movies&hellip;" autocomplete="off">
+      <div id="grid"></div>
+    </div>
+  </main>
+
+  <nav>
+    <button id="tabRemote" class="on"><svg><use href="#i-remote"/></svg>Remote</button>
+    <button id="tabLib"><svg><use href="#i-film"/></svg>Movies</button>
+  </nav>
+</section>
+
+<script>
+(function () {
+  const $ = (s) => document.querySelector(s);
+  const params = new URLSearchParams(location.search);
+  let code = params.get('code') || localStorage.getItem('theaterCode') || '';
+  let lib = [], parent = null, online = false;
+
+  function q(obj) { return new URLSearchParams(Object.assign({ code }, obj || {})).toString(); }
+
+  async function api(path, obj, method) {
+    const r = await fetch('/api/' + path + '?' + q(obj), { method: method || 'GET', cache: 'no-store' });
+    if (r.status === 401) { showPair(code ? 'The TV has a new code \u2014 type the one on screen.' : ''); throw new Error('code'); }
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  }
+
+  function buzz() { if (navigator.vibrate) navigator.vibrate(8); }
+  function send(k) { buzz(); api('key', { k }, 'POST').catch(() => {}); }
+
+  // ----- pairing -----
+  // Shows the code prompt and asks the TV to pop up the code.
+  function showPair(msg) {
+    $('#app').classList.add('hidden');
+    $('#pair').classList.remove('hidden');
+    $('#pairErr').textContent = msg || '';
+    $('#codeInput').value = '';
+    fetch('/api/pair', { method: 'POST', cache: 'no-store' }).catch(() => {});
+    setTimeout(() => $('#codeInput').focus(), 200);
+  }
+  async function tryCode(c) {
+    code = c;
+    try {
+      await api('ping');
+      localStorage.setItem('theaterCode', c);
+      $('#pair').classList.add('hidden');
+      $('#app').classList.remove('hidden');
+      poll();
+      return true;
+    } catch (e) {
+      if (e.message !== 'code') showPair('Can\u2019t reach Eric\u2019s Home Theater. Is it open on the PC, and is this phone on the same Wi-Fi?');
+      return false;
+    }
+  }
+  $('#pairBtn').onclick = () => tryCode($('#codeInput').value.trim());
+  $('#codeInput').addEventListener('input', (e) => { if (e.target.value.length === 4) tryCode(e.target.value); });
+
+  // ----- buttons with hold-to-repeat -----
+  document.querySelectorAll('[data-k]').forEach((b) => {
+    const k = b.dataset.k, repeat = b.hasAttribute('data-repeat');
+    let t1 = null, t2 = null;
+    const stop = () => { clearTimeout(t1); clearInterval(t2); t1 = t2 = null; };
+    b.addEventListener('pointerdown', (e) => {
+      if (b.closest('#pad') && e.pointerType === 'touch') return; // the pad handles touch itself
+      e.preventDefault();
+      send(k);
+      if (repeat) { t1 = setTimeout(() => { t2 = setInterval(() => send(k), 140); }, 420); }
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => b.addEventListener(ev, stop));
+    b.addEventListener('contextmenu', (e) => e.preventDefault());
+  });
+
+  // ----- D-pad: tap a key, or swipe anywhere on the circle -----
+  (function () {
+    const pad = $('#pad');
+    let sx = 0, sy = 0, moved = false, startEl = null, holdT = null, holdI = null;
+    const clear = () => { clearTimeout(holdT); clearInterval(holdI); holdT = holdI = null; };
+    pad.addEventListener('touchstart', (e) => {
+      const t = e.touches[0];
+      sx = t.clientX; sy = t.clientY; moved = false;
+      startEl = e.target.closest('[data-k]');
+      if (startEl && startEl.hasAttribute('data-repeat')) {
+        const k = startEl.dataset.k;
+        holdT = setTimeout(() => { send(k); holdI = setInterval(() => send(k), 140); }, 420);
+      }
+      e.preventDefault();
+    }, { passive: false });
+    pad.addEventListener('touchmove', (e) => {
+      const t = e.touches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+      if (Math.abs(dx) < 28 && Math.abs(dy) < 28) return;
+      clear();
+      moved = true;
+      send(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+      sx = t.clientX; sy = t.clientY;
+      e.preventDefault();
+    }, { passive: false });
+    pad.addEventListener('touchend', () => {
+      const wasHolding = holdI !== null;
+      clear();
+      if (!moved && !wasHolding && startEl) send(startEl.dataset.k);
+      startEl = null;
+    });
+  })();
+
+  // ----- search on the TV -----
+  let searchT = null;
+  $('#tvSearch').addEventListener('input', (e) => {
+    clearTimeout(searchT);
+    const v = e.target.value;
+    searchT = setTimeout(() => api('text', { t: v }, 'POST').catch(() => {}), 250);
+  });
+  $('#tvSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.target.blur(); } });
+
+  // ----- tabs -----
+  function tab(which) {
+    $('#tabRemote').classList.toggle('on', which === 'remote');
+    $('#tabLib').classList.toggle('on', which === 'lib');
+    $('#remoteView').classList.toggle('hidden', which !== 'remote');
+    $('#libView').classList.toggle('hidden', which !== 'lib');
+    if (which === 'lib' && !lib.length) loadLib(null);
+  }
+  $('#tabRemote').onclick = () => tab('remote');
+  $('#tabLib').onclick = () => tab('lib');
+
+  // ----- library -----
+  async function loadLib(p) {
+    parent = p;
+    $('#crumb').classList.toggle('hidden', !p);
+    $('#crumbTitle').textContent = p ? p.t : '';
+    $('#grid').innerHTML = '<div style="color:var(--dim)">Loading…</div>';
+    try { lib = await api('library', p ? { parent: p.id } : {}); } catch (e) { lib = []; }
+    $('#filter').value = '';
+    render();
+  }
+  $('#crumbBack').onclick = () => loadLib(null);
+  $('#filter').addEventListener('input', render);
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+  function render() {
+    const f = $('#filter').value.trim().toLowerCase();
+    const items = lib.filter((i) => !f || (i.t + ' ' + i.y).toLowerCase().includes(f));
+    const g = $('#grid');
+    g.innerHTML = items.length ? '' : '<div style="color:var(--dim)">Nothing here.</div>';
+    for (const it of items) {
+      const b = document.createElement('button');
+      b.className = 'card';
+      const badges = (it.q === '4K' ? '<b>4K</b>' : '') + (it.h ? '<b class="h">HDR</b>' : '');
+      b.innerHTML =
+        '<div class="art"><div class="ph">' + esc(it.t) + '</div>' +
+        '<img loading="lazy" alt="" src="/api/thumb?' + q({ id: it.id }) + '" onerror="this.remove()">' +
+        (badges ? '<div class="badges">' + badges + '</div>' : '') +
+        (it.k === 'c' ? '<div class="count">' + it.n + ' videos</div>' : '') +
+        (it.p > 0 ? '<div class="prog" style="width:' + (it.p * 100) + '%"></div>' : '') +
+        '</div><div class="tt">' + esc(it.t) + '</div><div class="yy">' + esc(it.y || (it.w ? 'Watched' : '')) + '</div>';
+      b.onclick = () => {
+        buzz();
+        if (it.k === 'c') { loadLib(it); return; }
+        api('play', { id: it.id }, 'POST').catch(() => {});
+        tab('remote');
+      };
+      g.appendChild(b);
+    }
+  }
+
+  // ----- live state -----
+  function fmt(s) {
+    s = Math.max(0, Math.floor(s || 0));
+    const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = s % 60;
+    return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0');
+  }
+  let pollT = null;
+  async function poll() {
+    clearTimeout(pollT);
+    if (document.hidden) return;
+    try {
+      const s = await api('state');
+      online = true;
+      const now = $('#now');
+      if (s.playing) {
+        now.classList.remove('hidden');
+        $('#nowTitle').textContent = (s.paused ? '❚❚  ' : '▶  ') + s.title;
+        $('#nowBar').style.width = s.length > 0 ? Math.min(100, (s.time / s.length) * 100) + '%' : '0';
+        $('#nowTime').textContent = fmt(s.time);
+        $('#nowLeft').textContent = s.length > 0 ? '−' + fmt(s.length - s.time) + '   ·   vol ' + s.volume + '%' : (s.disc ? 'Disc' : '');
+        $('#focus').textContent = '';
+      } else {
+        now.classList.add('hidden');
+        $('#focus').textContent = s.dialog ? 'On screen: ' + s.dialog : s.focus ? 'Selected: ' + s.focus : '';
+      }
+    } catch (e) {
+      online = false;
+    }
+    $('#conn').classList.toggle('on', online);
+    $('#conn span').textContent = online ? 'Connected' : 'Offline';
+    pollT = setTimeout(poll, 1000);
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && code) poll(); });
+
+  // ----- start -----
+  if (params.get('code')) history.replaceState(null, '', '/');
+  if (code) tryCode(code);
+  else showPair();
+})();
+</script>
+</body>
+</html>
