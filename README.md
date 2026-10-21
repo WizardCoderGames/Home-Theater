@@ -65,7 +65,26 @@ Tip: in Chrome on Android, use **⋮ → Add to Home screen** so the remote open
 | System info | F1 | Info |
 | Window or full screen | F11 | |
 
-With a mouse, hover to highlight, click to choose, right-click to go back, and use the scroll wheel for volume during a movie. Pressing **Back** on the home screen asks before exiting.
+With a mouse, hover to highlight, click to choose, right-click to go back, and use the scroll wheel for volume during a movie. Pressing **Back** on the home screen offers to exit to the desktop, restart the PC, or shut it down.
+
+### Game controllers
+
+Xbox controllers, and other PC gamepads that work with Windows' XInput, work too:
+
+| Button | Does |
+|---|---|
+| D-pad or left stick | Move around (hold to repeat) |
+| A / B | OK / Back |
+| X | Play / pause |
+| Y | Info (system info, or the on-screen display during a movie) |
+| Menu (Start) | Movie options: genres, watched |
+| View (Back) | Home |
+| LB / RB | Skip back / forward |
+| LT / RT | Volume down / up |
+
+PlayStation controllers work through Steam or DS4Windows, which make them appear as Xbox controllers.
+
+The phone QR popup only appears at start if nobody has used the keyboard, mouse or a controller yet, and any of those closes it.
 
 ## Discs
 

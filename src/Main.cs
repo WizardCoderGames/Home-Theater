@@ -15,8 +15,8 @@ using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("Eric's Home Theater")]
 [assembly: System.Reflection.AssemblyProduct("Eric's Home Theater")]
-[assembly: System.Reflection.AssemblyVersion("1.5.2.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.5.2.0")]
+[assembly: System.Reflection.AssemblyVersion("1.5.3.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.5.3.0")]
 
 namespace Theater
 {
@@ -66,6 +66,11 @@ namespace Theater
         bool updateBusy, updatePostponed;
         readonly Timer updateTimer = new Timer();
         Dialog pairDialog, qrDialog;
+        // Last time someone used the keyboard, mouse or a controller on this PC (not the phone).
+        DateTime lastLocalInput = DateTime.MinValue;
+        bool mouseSeen;
+        Gamepad pad;
+        readonly Timer padTimer = new Timer { Interval = 33 };
         bool phoneWasConnected, qrShownThisGap, startupQrDone;
         readonly DateTime startedAt = DateTime.Now;
         string displayDevice;
@@ -140,6 +145,9 @@ namespace Theater
                 if (!moving) anim.Stop();
             };
             slow.Tick += (s, e) => SlowTick();
+            pad = new Gamepad(LocalAct);
+            // Read controllers only while this app is in front.
+            padTimer.Tick += (s, e) => { var a = Form.ActiveForm; if (a == this || a is PlayerOverlay) pad.Poll(); };
             discTimer.Tick += (s, e) => { PollDiscs(); PollUsb(); };
             Load += (s, e) => ApplyDisplayMode();
             Shown += (s, e) =>
@@ -156,6 +164,7 @@ namespace Theater
                 Microsoft.Win32.SystemEvents.DisplaySettingsChanged += (s2, e2) => { try { BeginInvoke((Action)FitScreen); } catch { } };
                 slow.Start();
                 discTimer.Start();
+                padTimer.Start();
                 // First update check shortly after start, then every 6 hours.
                 updateTimer.Interval = Environment.GetEnvironmentVariable("THEATER_TEST") == "1" ? 3000 : 30000;
                 updateTimer.Tick += (s2, e2) => { updateTimer.Interval = 6 * 60 * 60 * 1000; CheckForUpdates(false); };
@@ -365,8 +374,11 @@ namespace Theater
                 return;
             }
             if (!Cfg.PhonePrompt || dialog != null || Player.Active || WindowState == FormWindowState.Minimized) return;
-            bool startup = !startupQrDone && (DateTime.Now - startedAt).TotalSeconds > 4;
-            bool lost = phoneWasConnected && !qrShownThisGap && (DateTime.Now - server.LastPhone).TotalSeconds > 30;
+            bool usedHere = lastLocalInput != DateTime.MinValue;
+            if (usedHere && !startupQrDone) startupQrDone = true;   // they're already using the keyboard, mouse or a controller
+            bool startup = !startupQrDone && (DateTime.Now - startedAt).TotalSeconds > 6;
+            bool lost = phoneWasConnected && !qrShownThisGap && (DateTime.Now - server.LastPhone).TotalSeconds > 30
+                && (!usedHere || (DateTime.Now - lastLocalInput).TotalMinutes >= 5);
             if (startup || lost)
             {
                 startupQrDone = true;
@@ -391,6 +403,28 @@ namespace Theater
             };
             dialog = qrDialog;
             Kick();
+        }
+
+        // Keyboard, mouse or controller use on this PC. Returns true if it only closed the QR popup.
+        bool NoteLocalInput(bool dismissQr)
+        {
+            lastLocalInput = DateTime.Now;
+            if (!dismissQr || qrDialog == null || dialog != qrDialog) return false;
+            CloseQr();
+            dialog = null;
+            Kick();
+            return true;
+        }
+
+        // A controller button: works like the same key on the keyboard.
+        void LocalAct(Act a)
+        {
+            if (NoteLocalInput(true)) return;
+            lastMouse = DateTime.Now;
+            if (WindowState == FormWindowState.Minimized) return;
+            if (Player.Active) Player.Act(a);
+            else if (a == Act.Home && dialog == null) { GoHome(); Current.Act(Act.Home); }
+            else Dispatch(a);
         }
 
         void CloseQr()
@@ -907,7 +941,7 @@ namespace Theater
             if (hide) Cursor.Hide(); else Cursor.Show();
         }
 
-        public void NoteMouse() { lastMouse = DateTime.Now; }
+        public void NoteMouse() { lastMouse = DateTime.Now; lastLocalInput = DateTime.Now; }
 
         void InvalidateVirtual(RectangleF v)
         {
@@ -1015,6 +1049,7 @@ namespace Theater
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
+            if (NoteLocalInput(keyData != Keys.F11)) return true;
             if (keyData == Keys.F11 || keyData == (Keys.Alt | Keys.Enter)) { ToggleWindowed(); return true; }
             if (Player.Active) return Player.Key(keyData) || base.ProcessCmdKey(ref msg, keyData);
             if (dialog == null && Current.WantsText)
@@ -1077,8 +1112,13 @@ namespace Theater
         protected override void OnMouseMove(MouseEventArgs e)
         {
             if (e.Location == lastMousePos) return;
+            // Windows reports the pointer's position once when the window appears under it; that isn't someone using the mouse.
+            bool firstReport = !mouseSeen;
+            mouseSeen = true;
             lastMousePos = e.Location;
+            if (firstReport) return;
             lastMouse = lastInput = DateTime.Now;
+            NoteLocalInput(false);
             SetCursorHidden(false);
             if (Player.Active) return;
             var p = ToVirtual(e.Location);
@@ -1089,6 +1129,7 @@ namespace Theater
         protected override void OnMouseDown(MouseEventArgs e)
         {
             lastMouse = DateTime.Now;
+            if (NoteLocalInput(true)) return;
             SetCursorHidden(false);
             if (Player.Active) return;
             if (e.Button == MouseButtons.Right || e.Button == MouseButtons.XButton1) { Dispatch(Act.Back); return; }
@@ -1106,6 +1147,7 @@ namespace Theater
 
         protected override void OnMouseWheel(MouseEventArgs e)
         {
+            NoteLocalInput(false);
             if (Player.Active) { Player.Wheel(e.Delta); return; }
             if (dialog == null) Current.Wheel(e.Delta);
         }

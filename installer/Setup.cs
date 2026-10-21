@@ -25,8 +25,8 @@ using Theater;
 
 [assembly: AssemblyTitle("Eric's Home Theater Setup")]
 [assembly: AssemblyProduct("Eric's Home Theater")]
-[assembly: AssemblyVersion("1.5.2.0")]
-[assembly: AssemblyFileVersion("1.5.2.0")]
+[assembly: AssemblyVersion("1.5.3.0")]
+[assembly: AssemblyFileVersion("1.5.3.0")]
 
 namespace TheaterSetup
 {
@@ -42,7 +42,7 @@ namespace TheaterSetup
     static class Setup
     {
         public const string Name = "Eric's Home Theater";
-        public const string Version = "1.5.2";
+        public const string Version = "1.5.3";
         public const string ExeName = "EricsHomeTheater.exe";
         const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\EricsHomeTheater";
         const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
