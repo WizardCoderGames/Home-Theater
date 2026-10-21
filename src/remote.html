@@ -75,6 +75,10 @@
   .search { display: flex; gap: 10px; max-width: 360px; margin: 18px auto 0; }
   .search input, #filter { flex: 1; min-width: 0; font-size: 16px; padding: 14px 16px; border-radius: 14px; border: 2px solid transparent; background: var(--panel); color: var(--ink); outline: none; }
   .search input:focus, #filter:focus { border-color: var(--accent); }
+  #pwBox { flex-wrap: wrap; }
+  #pwBox input { flex-basis: 100%; }
+  .pwbtn { flex: 1; padding: 12px; }
+  .pwbtn.on { background: var(--accent); color: #111; }
 
   /* library */
   #crumb { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
@@ -204,8 +208,13 @@
         <button class="btn" data-k="stop"><svg><use href="#i-stop"/></svg>Stop</button>
       </div>
 
-      <div class="search">
+      <div class="search" id="searchBox">
         <input id="tvSearch" type="search" placeholder="Search on the TV&hellip;" autocomplete="off" enterkeyhint="search">
+      </div>
+      <div class="search hidden" id="pwBox">
+        <input id="tvPw" type="password" placeholder="Wi-Fi password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
+        <button class="btn pwbtn" id="pwShow" type="button">Show</button>
+        <button class="btn pwbtn on" id="pwGo" type="button">Connect</button>
       </div>
     </div>
 
@@ -405,6 +414,28 @@
   });
   $('#tvSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.target.blur(); } });
 
+  // ----- Wi-Fi password, while the TV shows its password screen -----
+  let pwT = null, pwMode = false;
+  const sendPw = () => api('text', { t: $('#tvPw').value }, 'POST').catch(() => {});
+  $('#tvPw').addEventListener('input', () => { clearTimeout(pwT); pwT = setTimeout(sendPw, 200); });
+  async function pwConnect() {
+    clearTimeout(pwT);
+    buzz();
+    await sendPw();
+    api('key', { k: 'ok' }, 'POST').catch(() => {});
+    $('#tvPw').blur();
+  }
+  $('#tvPw').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); pwConnect(); } });
+  $('#pwGo').onclick = pwConnect;
+  $('#pwShow').onclick = () => { const i = $('#tvPw'); i.type = i.type === 'password' ? 'text' : 'password'; $('#pwShow').textContent = i.type === 'password' ? 'Show' : 'Hide'; };
+  function setPwMode(on) {
+    if (on === pwMode) return;
+    pwMode = on;
+    $('#pwBox').classList.toggle('hidden', !on);
+    $('#searchBox').classList.toggle('hidden', on);
+    if (!on) { $('#tvPw').value = ''; $('#tvPw').type = 'password'; $('#pwShow').textContent = 'Show'; }
+  }
+
   // ----- tabs -----
   function tab(which) {
     $('#tabRemote').classList.toggle('on', which === 'remote');
@@ -470,6 +501,7 @@
     try {
       const s = await api('state');
       online = true;
+      setPwMode(s.screen === 'wifipass');
       const now = $('#now');
       if (s.playing) {
         now.classList.remove('hidden');

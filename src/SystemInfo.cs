@@ -170,6 +170,169 @@ namespace Theater
             return s.IndexOf("completed successfully", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
+        public class Network
+        {
+            public string Ssid = "", Auth = "";
+            public int Signal = -1;          // percent, when Windows reports it
+            public bool Saved, Current;
+            public bool Open { get { return Auth.Equals("Open", StringComparison.OrdinalIgnoreCase); } }
+            public bool Enterprise { get { return Auth.IndexOf("Enterprise", StringComparison.OrdinalIgnoreCase) >= 0 || Auth.Contains("802.1X"); } }
+        }
+
+        // Networks in range, strongest first (the connected one at the top).
+        public static List<Network> Nearby(bool rescan)
+        {
+            if (rescan && Scan()) Thread.Sleep(3500);   // give the adapter time to listen on every channel
+            var saved = new HashSet<string>(SavedNetworks());
+            var cur = Get();
+            var list = new List<Network>();
+            Network n = null;
+            foreach (var raw in Netsh("wlan show networks mode=bssid").Split('\n'))
+            {
+                string line = raw.TrimEnd('\r', ' ');
+                var m = Regex.Match(line, @"^SSID \d+\s*:\s*(.*)$");
+                if (m.Success)
+                {
+                    n = new Network { Ssid = m.Groups[1].Value.Trim() };
+                    if (n.Ssid.Length > 0 && !list.Any(x => x.Ssid == n.Ssid)) list.Add(n);
+                    continue;
+                }
+                if (n == null) continue;
+                m = Regex.Match(line, @"^\s+Authentication\s*:\s*(.+)$");
+                if (m.Success && n.Auth == "") n.Auth = m.Groups[1].Value.Trim();
+                m = Regex.Match(line, @"^\s+Signal\s*:\s*(\d+)%");
+                if (m.Success) n.Signal = Math.Max(n.Signal, int.Parse(m.Groups[1].Value));
+            }
+            foreach (var x in list)
+            {
+                x.Saved = saved.Contains(x.Ssid);
+                x.Current = cur.Connected && cur.Ssid == x.Ssid;
+                int sig;
+                if (x.Current && x.Signal < 0 && int.TryParse(cur.Signal.TrimEnd('%', ' '), out sig)) x.Signal = sig;
+            }
+            if (cur.Connected && cur.Ssid != "" && !list.Any(x => x.Current))
+            {
+                int sig;
+                list.Add(new Network { Ssid = cur.Ssid, Saved = true, Current = true, Signal = int.TryParse(cur.Signal.TrimEnd('%', ' '), out sig) ? sig : -1 });
+            }
+            return list.OrderByDescending(x => x.Current).ThenByDescending(x => x.Signal).ThenByDescending(x => x.Saved).ThenBy(x => x.Ssid).ToList();
+        }
+
+        // Joins a network that isn't saved yet: saves a Windows Wi-Fi profile with the password, then connects.
+        // Returns "" on success or a short reason. A wrong password removes the profile again.
+        public static string ConnectNew(Network net, string password)
+        {
+            if (net.Enterprise) return "This network needs a work or school sign-in. Use Windows Settings for it.";
+            string auth, enc;
+            string a = net.Auth.ToUpperInvariant();
+            if (net.Open) { auth = "open"; enc = "none"; }
+            else if (a.Contains("WPA3")) { auth = "WPA3SAE"; enc = "AES"; }
+            else if (a.Contains("WPA2")) { auth = "WPA2PSK"; enc = "AES"; }
+            else if (a.Contains("WPA")) { auth = "WPAPSK"; enc = "TKIP"; }
+            else return "This network uses old security (" + net.Auth + ") that " + AppInfo.Name + " can't set up.";
+            if (!net.Open && (password.Length < 8 || password.Length > 63)) return "Wi-Fi passwords are 8 to 63 characters";
+
+            string hex = BitConverter.ToString(System.Text.Encoding.UTF8.GetBytes(net.Ssid)).Replace("-", "");
+            string name = System.Security.SecurityElement.Escape(net.Ssid);
+            string xml = "<?xml version=\"1.0\"?>\r\n<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\">"
+                + "<name>" + name + "</name><SSIDConfig><SSID><hex>" + hex + "</hex><name>" + name + "</name></SSID></SSIDConfig>"
+                + "<connectionType>ESS</connectionType><connectionMode>auto</connectionMode><MSM><security>"
+                + "<authEncryption><authentication>" + auth + "</authentication><encryption>" + enc + "</encryption><useOneX>false</useOneX></authEncryption>"
+                + (net.Open ? "" : "<sharedKey><keyType>passPhrase</keyType><protected>false</protected><keyMaterial>" + System.Security.SecurityElement.Escape(password) + "</keyMaterial></sharedKey>")
+                + "</security></MSM></WLANProfile>";
+            // Windows encrypts the password as it imports the profile; the file only exists for that moment.
+            string file = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "theater-wifi-" + Guid.NewGuid().ToString("N") + ".xml");
+            string added;
+            try
+            {
+                System.IO.File.WriteAllText(file, xml);
+                added = Netsh("wlan add profile filename=\"" + file + "\" user=current");
+            }
+            finally { try { System.IO.File.Delete(file); } catch { } }
+            if (added.IndexOf("is added", StringComparison.OrdinalIgnoreCase) < 0) return "Windows wouldn't save this network";
+            if (WaitFor(net.Ssid, Connect(net.Ssid))) return "";
+            if (net.Ssid.IndexOf('"') < 0) Netsh("wlan delete profile name=\"" + net.Ssid + "\"");
+            return net.Open ? "Couldn't connect to " + net.Ssid : "Couldn't connect. Check the password and try again.";
+        }
+
+        // Connects to a saved network and waits to see whether it worked.
+        public static bool ConnectSaved(string ssid) { return WaitFor(ssid, Connect(ssid)); }
+
+        static bool WaitFor(string ssid, bool started)
+        {
+            if (!started) return false;
+            for (int i = 0; i < 20; i++)
+            {
+                Thread.Sleep(1000);
+                var st = Get();
+                if (st.Connected && st.Ssid == ssid) return true;
+            }
+            return false;
+        }
+
+        public class Wired { public bool Present, Connected; public string Adapter = "", Speed = "", Address = ""; }
+
+        // The PC's Ethernet port (Bluetooth and virtual adapters don't count).
+        public static Wired Ethernet()
+        {
+            var w = new Wired();
+            try
+            {
+                foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (ni.NetworkInterfaceType != NetworkInterfaceType.Ethernet && ni.NetworkInterfaceType != NetworkInterfaceType.GigabitEthernet) continue;
+                    string d = ni.Description;
+                    if (Regex.IsMatch(d, "Bluetooth|Virtual|Hyper-V|VPN|TAP-|Loopback|WAN Miniport|VMware|VirtualBox|Tunnel", RegexOptions.IgnoreCase)) continue;
+                    bool up = ni.OperationalStatus == OperationalStatus.Up;
+                    if (w.Present && !up) continue;   // prefer a port that has a cable in it
+                    w.Present = true;
+                    w.Connected = up;
+                    w.Adapter = d;
+                    w.Speed = up && ni.Speed > 0 ? (ni.Speed >= 1000000000 ? (ni.Speed / 1e9).ToString("0.#") + " Gbps" : (ni.Speed / 1000000) + " Mbps") : "";
+                    w.Address = "";
+                    if (up)
+                        foreach (var u in ni.GetIPProperties().UnicastAddresses)
+                            if (u.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork) { w.Address = u.Address.ToString(); break; }
+                    if (up) break;
+                }
+            }
+            catch { }
+            return w;
+        }
+
+        // Asks every Wi-Fi adapter to look for networks now (otherwise Windows only scans every minute or so).
+        [DllImport("wlanapi.dll")] static extern int WlanOpenHandle(uint version, IntPtr reserved, out uint negotiated, out IntPtr handle);
+        [DllImport("wlanapi.dll")] static extern int WlanCloseHandle(IntPtr handle, IntPtr reserved);
+        [DllImport("wlanapi.dll")] static extern int WlanEnumInterfaces(IntPtr handle, IntPtr reserved, out IntPtr list);
+        [DllImport("wlanapi.dll")] static extern int WlanScan(IntPtr handle, ref Guid iface, IntPtr ssid, IntPtr ie, IntPtr reserved);
+        [DllImport("wlanapi.dll")] static extern void WlanFreeMemory(IntPtr p);
+
+        static bool Scan()
+        {
+            IntPtr h = IntPtr.Zero, list = IntPtr.Zero;
+            bool any = false;
+            try
+            {
+                uint v;
+                if (WlanOpenHandle(2, IntPtr.Zero, out v, out h) != 0) return false;
+                if (WlanEnumInterfaces(h, IntPtr.Zero, out list) != 0) return false;
+                int count = Marshal.ReadInt32(list);
+                for (int i = 0; i < count; i++)
+                {
+                    // WLAN_INTERFACE_INFO: a GUID, a 256-character description, then the state (532 bytes).
+                    var guid = (Guid)Marshal.PtrToStructure(new IntPtr(list.ToInt64() + 8 + i * 532), typeof(Guid));
+                    if (WlanScan(h, ref guid, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero) == 0) any = true;
+                }
+            }
+            catch { }
+            finally
+            {
+                if (list != IntPtr.Zero) WlanFreeMemory(list);
+                if (h != IntPtr.Zero) WlanCloseHandle(h, IntPtr.Zero);
+            }
+            return any;
+        }
+
         public static bool HasNetwork()
         {
             try
@@ -189,6 +352,7 @@ namespace Theater
         public volatile float CpuPercent = -1, Gpu3dPercent = -1, GpuVideoPercent = -1, AppCpuPercent = -1;
         public long RamTotal, RamUsed, AppMemory, VlcMemory;
         public List<Tuple<string, long>> Gpus = new List<Tuple<string, long>>();
+        public volatile List<Drives.Drive> DriveList = new List<Drives.Drive>();
 
         Thread thread;
         volatile bool running;
@@ -221,7 +385,7 @@ namespace Theater
             PerformanceCounter cpu = null;
             try { cpu = new PerformanceCounter("Processor", "% Processor Time", "_Total"); cpu.NextValue(); } catch { cpu = null; }
             var gpuCounters = new List<PerformanceCounter>();
-            DateTime gpuListAt = DateTime.MinValue;
+            DateTime gpuListAt = DateTime.MinValue, drivesAt = DateTime.MinValue;
             var me = Process.GetCurrentProcess();
             TimeSpan lastCpu = me.TotalProcessorTime;
             DateTime lastAt = DateTime.Now;
@@ -244,6 +408,7 @@ namespace Theater
                     long vlc = 0;
                     foreach (var p in Process.GetProcessesByName("vlc")) { try { vlc += p.WorkingSet64; } catch { } p.Dispose(); }
                     VlcMemory = vlc;
+                    if ((DateTime.Now - drivesAt).TotalSeconds >= 5) { DriveList = Drives.Read(); drivesAt = DateTime.Now; }
 
                     // GPU load from Windows' "GPU Engine" counters (Windows 10 and later).
                     if ((DateTime.Now - gpuListAt).TotalSeconds > 10)
@@ -324,33 +489,30 @@ namespace Theater
         [DllImport("kernel32.dll")] static extern bool GlobalMemoryStatusEx(ref MemStatus m);
     }
 
-    // What a phone's Wake-on-LAN app needs to wake this PC: its network card's MAC address and the broadcast address.
-    static class WakeOnLan
+    // Internal drives and USB drives with their size and free space.
+    static class Drives
     {
-        public static bool Find(out string mac, out string broadcast, out string adapter)
+        public class Drive { public string Letter = "", Label = "", Format = ""; public bool Usb; public long Total, Free; public long Used { get { return Total - Free; } } }
+
+        public static List<Drive> Read()
         {
-            mac = broadcast = adapter = "";
+            var list = new List<Drive>();
             try
             {
-                foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
+                // Disc drives are skipped: asking them can spin up a disc.
+                foreach (var d in System.IO.DriveInfo.GetDrives())
                 {
-                    if (ni.OperationalStatus != OperationalStatus.Up || ni.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
-                    var props = ni.GetIPProperties();
-                    if (props.GatewayAddresses.Count == 0) continue;
-                    foreach (var u in props.UnicastAddresses)
+                    if (d.DriveType != System.IO.DriveType.Fixed && d.DriveType != System.IO.DriveType.Removable) continue;
+                    try
                     {
-                        if (u.Address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork || u.IPv4Mask == null) continue;
-                        byte[] ip = u.Address.GetAddressBytes(), mask = u.IPv4Mask.GetAddressBytes(), b = new byte[4];
-                        for (int i = 0; i < 4; i++) b[i] = (byte)(ip[i] | ~mask[i]);
-                        broadcast = new System.Net.IPAddress(b).ToString();
-                        mac = string.Join(":", ni.GetPhysicalAddress().GetAddressBytes().Select(x => x.ToString("X2")));
-                        adapter = ni.Description;
-                        return true;
+                        if (!d.IsReady || d.TotalSize <= 0) continue;
+                        list.Add(new Drive { Letter = d.Name.TrimEnd('\\'), Label = d.VolumeLabel, Format = d.DriveFormat, Usb = d.DriveType == System.IO.DriveType.Removable, Total = d.TotalSize, Free = d.TotalFreeSpace });
                     }
+                    catch { }
                 }
             }
             catch { }
-            return false;
+            return list;
         }
     }
 }

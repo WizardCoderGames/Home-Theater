@@ -18,7 +18,9 @@ It plays the movie files already on your PC (MKV, MP4, AVI and more, up to 4K HD
 - **USB drives.** Plug in a flash drive, SD card or external USB hard drive and its movies are added automatically, in a "USB" row on the home screen and in search, genres and All Movies. Unplug it and they disappear again. Turn this off in **Settings → USB drives**.
 - **Runs well on slow PCs.** Animations switch off automatically if a PC can't draw them smoothly, and you can lower the screen resolution while the app is open (Native, 1080p, 720p).
 - **Playback options for tricky hardware.** Choose hardware acceleration (Automatic, Direct3D 11, DXVA2 or off) and the video renderer (Direct3D 11, Direct3D 9, OpenGL or Windows GDI).
-- **System info.** A live view of the processor, graphics card, memory, CPU and GPU load, display and network.
+- **System info.** A live view of the processor, graphics card, memory, CPU and GPU load, display and network, plus every drive with its size and free space.
+- **Wi-Fi settings.** See Ethernet and nearby Wi-Fi networks and connect from the couch. Type a new network's password with a keyboard, an on-screen keyboard (arrows or a controller), or your phone.
+- **Themes.** Seven color themes: Midnight gold, Ocean blue, Cinema red, Emerald, Royal purple, Sunset orange and Graphite (**Settings → Theme**).
 - **Updates itself.** When a new version is published here, the app downloads it, checks it, and updates and reopens itself; it never interrupts a movie.
 
 ## Requirements
@@ -71,13 +73,21 @@ With a mouse, hover to highlight, click to choose, right-click to go back, and u
 
 Pressing **Back** on the home screen offers **Stay**, **Restart the PC**, **Shut down the PC**, or **Exit to desktop**. Restart and shut down ask again with a 15-second countdown you can cancel. Opening the app while it's already running brings the running copy to the front.
 
-**Waking the PC from your phone:** install a free "Wake On LAN" app and enter the details shown in **Settings â†’ Wake this PC from your phone**. Over Wi-Fi this works from sleep; to turn the PC on from a full shutdown it needs an Ethernet cable and "Wake on LAN" turned on in the BIOS.
-
 The mouse pointer hides whenever you use the keyboard, a controller or the phone remote, and comes back when you move the mouse.
+
+### Wi-Fi and Ethernet
+
+**Settings → Wi-Fi settings** shows whether an Ethernet cable is connected (it connects by itself) and lists the Wi-Fi networks in range with their signal. Choose one to connect:
+
+- **Saved networks** connect straight away.
+- **New networks** open a password screen. Type on a keyboard and press Enter; or use the on-screen keyboard with the arrows or a controller (A types, X deletes, Start connects, B cancels); or type in the password box that appears in the phone remote. A wrong password isn't saved.
+- **Auto-connect when the app starts** reconnects to your network if the app starts with Windows before Wi-Fi is up.
+
+If the phone remote is on the old network when you switch, move the phone to the new network too. Work or school networks that need a username are set up in Windows Settings.
 
 ### Game controllers
 
-Xbox controllers, and other PC gamepads that work with Windows' XInput, work too:
+Xbox controllers, and other PC gamepads that work with Windows' XInput, work too. Once you press a controller button, the button hints at the bottom of the screen show controller buttons instead of keyboard keys (and switch back when you use the keyboard or mouse):
 
 | Button | Does |
 |---|---|

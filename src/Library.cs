@@ -13,6 +13,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Theater
 {
@@ -33,6 +34,7 @@ namespace Theater
         public bool AutoUpdate = true;       // download and install new versions from GitHub
         public bool UsbAuto = true;          // add movies from USB drives while they're plugged in
         public bool PhonePrompt = true;      // show the phone QR code at start and when the phone disconnects
+        public string Theme = "gold";        // a Ui.Themes key
 
         // Extra VLC options for the hardware acceleration and renderer choices.
         public string VlcArgs()
@@ -76,6 +78,7 @@ namespace Theater
                             case "autoupdate": s.AutoUpdate = v != "0"; break;
                             case "usbauto": s.UsbAuto = v != "0"; break;
                             case "phoneprompt": s.PhonePrompt = v != "0"; break;
+                            case "theme": s.Theme = v; break;
                         }
                     }
                 }
@@ -139,6 +142,7 @@ namespace Theater
                 lines.Add("autoupdate=" + (AutoUpdate ? "1" : "0"));
                 lines.Add("usbauto=" + (UsbAuto ? "1" : "0"));
                 lines.Add("phoneprompt=" + (PhonePrompt ? "1" : "0"));
+                lines.Add("theme=" + Theme);
                 File.WriteAllLines(FilePath, lines);
             }
             catch { }
@@ -641,7 +645,6 @@ namespace Theater
         public const int W = 480, H = 270;
 
         readonly List<MediaItem> queue = new List<MediaItem>();
-        readonly AutoResetEvent signal = new AutoResetEvent(false);
         readonly Dictionary<string, string> meta = new Dictionary<string, string>();
         public Action Changed;
         public Func<string> VlcPath = () => "";
@@ -661,9 +664,15 @@ namespace Theater
                     }
             }
             catch { }
-            var t = new Thread(Run) { IsBackground = true, Priority = ThreadPriority.BelowNormal, Name = "thumbs" };
-            t.SetApartmentState(ApartmentState.STA);
-            t.Start();
+            // One worker only loads saved thumbnails (instant); the others capture new frames side by side.
+            int grabbers = Environment.ProcessorCount >= 8 ? 3 : Environment.ProcessorCount >= 4 ? 2 : 1;
+            for (int i = 0; i <= grabbers; i++)
+            {
+                bool cheapOnly = i == 0;
+                var t = new Thread(() => Run(cheapOnly)) { IsBackground = true, Priority = ThreadPriority.BelowNormal, Name = "thumbs" + i };
+                t.SetApartmentState(ApartmentState.STA);
+                t.Start();
+            }
         }
 
         public static string CachePath(string id) { return Path.Combine(CacheDir, id + ".jpg"); }
@@ -700,34 +709,83 @@ namespace Theater
             return t;
         }
 
+        // Movies whose thumbnails are made ahead of time, before they're on screen.
+        readonly List<MediaItem> later = new List<MediaItem>();
+        readonly HashSet<MediaItem> laterSet = new HashSet<MediaItem>();
+
+        readonly HashSet<MediaItem> aheadNow = new HashSet<MediaItem>();
+        bool aheadWanted;   // something being made ahead came on screen meanwhile, so repaint when it's done
+
         public void Request(MediaItem it)
         {
-            if (it == null || it.ThumbQueued) return;
-            it.ThumbQueued = true;
-            lock (queue) queue.Add(it);
-            signal.Set();
+            if (it == null) return;
+            lock (queue)
+            {
+                if (laterSet.Remove(it)) later.Remove(it);   // on screen now: move it to the front of the line
+                else if (it.ThumbQueued) { if (aheadNow.Contains(it)) aheadWanted = true; return; }
+                it.ThumbQueued = true;
+                queue.Add(it);
+                Monitor.PulseAll(queue);
+            }
         }
 
-        void Run()
+        // Queues thumbnails for every movie that doesn't have one yet; they're made while the app sits idle.
+        public void Prefetch(IEnumerable<MediaItem> items)
+        {
+            var todo = new List<MediaItem>();
+            var seen = new HashSet<MediaItem>();
+            var stack = new Stack<MediaItem>(items);
+            while (stack.Count > 0)
+            {
+                var it = stack.Pop();
+                if (it == null || !seen.Add(it)) continue;
+                if (it.Children != null) foreach (var c in it.Children) stack.Push(c);
+                if (it.IsGenre || it.Kind == Kind.NoDisc || it.ThumbQueued || it.ThumbReady) continue;
+                if (it.Kind != Kind.Movie && it.Kind != Kind.Collection) continue;
+                todo.Add(it);
+            }
+            if (todo.Count == 0) return;
+            Task.Run(() =>
+            {
+                // Checking the disk cache is quick but not free, so it happens off the UI thread.
+                var missing = todo.FindAll(it => !File.Exists(CachePath(it.Id)));
+                lock (queue)
+                {
+                    foreach (var it in missing)
+                        if (!it.ThumbQueued) { it.ThumbQueued = true; later.Insert(0, it); laterSet.Add(it); }
+                    Monitor.PulseAll(queue);
+                }
+            });
+        }
+
+        void Run(bool cheapOnly)
         {
             while (true)
             {
                 MediaItem it = null;
-                bool waiting = false;
+                bool ahead = false;
                 lock (queue)
                 {
-                    // Already-saved thumbnails load first (newest request first); new frame captures,
-                    // which are slow, wait while the user is scrolling or a movie is playing.
-                    for (int i = queue.Count - 1; i >= 0 && it == null; i--)
-                        if (IsCheap(queue[i])) { it = queue[i]; queue.RemoveAt(i); }
-                    if (it == null && queue.Count > 0)
+                    while (it == null)
                     {
-                        if (Busy() || Paused) waiting = true;
-                        else { it = queue[queue.Count - 1]; queue.RemoveAt(queue.Count - 1); }
+                        // Already-saved thumbnails load first (newest request first); new frame captures,
+                        // which are slow, wait while the user is scrolling or a movie is playing.
+                        for (int i = queue.Count - 1; i >= 0 && it == null; i--)
+                            if (IsCheap(queue[i])) { it = queue[i]; queue.RemoveAt(i); }
+                        if (it != null) break;
+                        if (cheapOnly || queue.Count + later.Count == 0) { Monitor.Wait(queue); continue; }
+                        if (Busy() || Paused) { Monitor.Wait(queue, 250); continue; }
+                        if (queue.Count > 0) { it = queue[queue.Count - 1]; queue.RemoveAt(queue.Count - 1); }
+                        else { it = later[later.Count - 1]; later.RemoveAt(later.Count - 1); laterSet.Remove(it); aheadNow.Add(it); ahead = true; }
                     }
                 }
-                if (it == null) { if (waiting) Thread.Sleep(300); else signal.WaitOne(); continue; }
-                try { Load(it); } catch { }
+                try { Load(it, ahead); } catch { }
+                if (ahead)
+                {
+                    bool wanted;
+                    lock (queue) { aheadNow.Remove(it); wanted = aheadWanted; aheadWanted = false; }
+                    if (!wanted) continue;   // not on screen, so nothing to repaint
+                }
                 var h = Changed;
                 if (h != null) h();
             }
@@ -735,7 +793,8 @@ namespace Theater
 
         static bool IsCheap(MediaItem it) { return it.Kind == Kind.NoDisc || it.IsGenre || File.Exists(CachePath(it.Id)); }
 
-        void Load(MediaItem it)
+        // ahead: made in advance, so it's only saved to disk (memory holds just the thumbnails on screen).
+        void Load(MediaItem it, bool ahead)
         {
             if (it.Kind == Kind.Movie) LoadMeta(it);
             if (it.Kind == Kind.NoDisc) return;
@@ -759,7 +818,9 @@ namespace Theater
             if (src == null) return;
             var card = MakeCard(src, poster);
             src.Dispose();
-            try { card.Save(cache, ImageFormat.Jpeg); } catch { }
+            bool saved = false;
+            try { card.Save(cache, ImageFormat.Jpeg); saved = true; } catch { }
+            if (ahead && saved) { card.Dispose(); it.ThumbReady = true; return; }
             it.Thumb = card;
             it.ThumbReady = true;
         }
@@ -767,7 +828,9 @@ namespace Theater
         void LoadMeta(MediaItem it)
         {
             string m;
-            if (!meta.TryGetValue(it.Id, out m))
+            bool known;
+            lock (meta) known = meta.TryGetValue(it.Id, out m);
+            if (!known)
             {
                 int width, height;
                 double dur;
@@ -775,8 +838,11 @@ namespace Theater
                 // Classify by width as well: widescreen movies are often cropped to e.g. 1920x800.
                 string q = width >= 3200 || height >= 1600 ? "4K" : width >= 1800 || height >= 1000 ? "1080p" : width >= 1200 || height >= 700 ? "720p" : width > 0 ? "SD" : "";
                 m = q + "\t" + dur.ToString(CultureInfo.InvariantCulture);
-                meta[it.Id] = m;
-                try { File.AppendAllText(Path.Combine(CacheDir, "meta.txt"), it.Id + "\t" + m + "\r\n"); } catch { }
+                lock (meta)
+                {
+                    meta[it.Id] = m;
+                    try { File.AppendAllText(Path.Combine(CacheDir, "meta.txt"), it.Id + "\t" + m + "\r\n"); } catch { }
+                }
             }
             var p = m.Split('\t');
             double d;
@@ -809,10 +875,11 @@ namespace Theater
             {
                 Directory.CreateDirectory(dir);
                 if (File.Exists(outFile)) File.Delete(outFile);
+                // Saves the first decoded frame and stops after half a second (2.6 s per movie before, ~1.1 s now).
                 string args = "-I dummy --dummy-quiet --no-audio --vout=dummy --avcodec-hw=none --no-osd --no-video-title-show"
-                    + " --video-filter=scene --scene-format=jpg --scene-ratio=10 --scene-replace --scene-width=640"
+                    + " --video-filter=scene --scene-format=jpg --scene-ratio=1 --scene-replace --scene-width=640"
                     + " --scene-prefix=" + prefix + " --scene-path=\"" + dir + "\""
-                    + " --start-time=" + ((int)at) + " --run-time=2 --play-and-exit --no-one-instance \"" + it.Path + "\"";
+                    + " --start-time=" + ((int)at) + " --run-time=0.5 --play-and-exit --no-one-instance \"" + it.Path + "\"";
                 using (var p = Process.Start(new ProcessStartInfo(vlc, args) { UseShellExecute = false, CreateNoWindow = true }))
                 {
                     Jobs.Track(p);

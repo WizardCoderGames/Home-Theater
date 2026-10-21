@@ -15,8 +15,8 @@ using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("Eric's Home Theater")]
 [assembly: System.Reflection.AssemblyProduct("Eric's Home Theater")]
-[assembly: System.Reflection.AssemblyVersion("1.5.5.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.5.5.0")]
+[assembly: System.Reflection.AssemblyVersion("1.6.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.6.0.0")]
 
 namespace Theater
 {
@@ -136,9 +136,10 @@ namespace Theater
             Thumbs = new Thumbs();
             Thumbs.Changed = () => thumbsDirty = true;
             Thumbs.VlcPath = () => Cfg.VlcPath;
-            Thumbs.Busy = () => (DateTime.Now - lastInput).TotalSeconds < 1.5;
+            Thumbs.Busy = () => (DateTime.Now - lastInput).TotalSeconds < 0.8;
             Art = new CardArt(this);
             Ui.Smooth = Cfg.Anim != "off";
+            Ui.SetTheme(Cfg.Theme);
 
             Text = AppInfo.Name;
             BackColor = Ui.Bg;
@@ -255,6 +256,7 @@ namespace Theater
                     else toast = null;
                 }
                 Kick();
+                if (!t.IsFaulted) Thumbs.Prefetch(Lib.Items);
                 if (rescanAgain) { rescanAgain = false; Rescan(true); }
             })));
         }
@@ -445,8 +447,20 @@ namespace Theater
         }
 
         // A controller button: works like the same key on the keyboard.
+        // True after a controller button; on-screen hints then show controller buttons instead of keys.
+        public bool UsingController { get; private set; }
+        public string OkButton { get { return UsingController ? "A" : "OK"; } }
+
+        void SetController(bool on)
+        {
+            if (UsingController == on) return;
+            UsingController = on;
+            if (Player.Active) Player.Render(); else Kick();
+        }
+
         void LocalAct(Act a)
         {
+            SetController(true);
             NoteOtherInput();
             if (NoteLocalInput(true)) return;
             if (WindowState == FormWindowState.Minimized) return;
@@ -489,6 +503,19 @@ namespace Theater
             pairDialog = null;
             if (Player.Active) Player.ShowCode(null);
             else ShowToast("Phone connected", 3);
+            Kick();
+        }
+
+        public void ApplyTheme(string key)
+        {
+            Ui.SetTheme(key);
+            Cfg.Theme = Ui.FindTheme(key).Key;
+            Cfg.Save();
+            BackColor = Ui.Bg;
+            // Card art and the home backdrop are pre-rendered with the old colors.
+            Art.Clear();
+            stack[0] = new HomeScreen(this);
+            foreach (var s in stack) s.Refresh();
             Kick();
         }
 
@@ -1112,6 +1139,7 @@ namespace Theater
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
+            SetController(false);
             NoteOtherInput();
             if (NoteLocalInput(keyData != Keys.F11)) return true;
             if (keyData == Keys.F11 || keyData == (Keys.Alt | Keys.Enter)) { ToggleWindowed(); return true; }
@@ -1182,6 +1210,7 @@ namespace Theater
             lastMousePos = e.Location;
             if (firstReport) return;
             lastMouse = lastInput = DateTime.Now;
+            SetController(false);
             NoteLocalInput(false);
             UpdateCursor();
             if (Player.Active) return;
@@ -1230,6 +1259,8 @@ namespace Theater
         public void RemoteKey(string k)
         {
             Act a;
+            // Test builds only: "pad-ok" etc. acts like a controller button, for automated checks.
+            if (k != null && k.StartsWith("pad-") && Environment.GetEnvironmentVariable("THEATER_TEST") == "1" && RemoteActs.TryGetValue(k.Substring(4), out a)) { LocalAct(a); return; }
             if (!RemoteActs.TryGetValue(k ?? "", out a)) return;
             NoteOtherInput();
             if (WindowState == FormWindowState.Minimized) return;
@@ -1880,10 +1911,13 @@ namespace Theater
             Ui.Text(g, "Stop", Ui.F(20, 1), Color.White, stop, StringAlignment.Center, StringAlignment.Center);
             buttons.Add(new KeyValuePair<RectangleF, Act>(stop, Theater.Act.Stop));
 
-            string hints = IsDisc
-                ? "Arrows + OK  disc menu      Tab  open disc menu      [ ]  skip      Space  pause      Esc  exit"
-                : "OK  pause      ◀ ▶  skip 10s / 30s      A  audio      S  subtitles      +/−  volume      Esc  exit";
-            Ui.Text(g, hints, Ui.F(18), Color.FromArgb(160, 220, 220, 228), new RectangleF(80, 1038, 1760, 30), StringAlignment.Center);
+            bool pad = F.UsingController;
+            string hints = pad
+                ? (IsDisc ? "D-pad~A:Disc menu|Start:Open disc menu|LB~RB:Skip|X:Pause|B:Exit"
+                          : "A:Pause|LB~RB:Skip 10s / 30s|LT~RT:Volume|Y:Info|B:Exit")
+                : (IsDisc ? "Arrows~Enter:Disc menu|Tab:Open disc menu|[~]:Skip|Space:Pause|Esc:Exit"
+                          : "Enter:Pause|◀~▶:Skip 10s / 30s|A:Audio|S:Subtitles|+~−:Volume|Esc:Exit");
+            Ui.Hints(g, new RectangleF(80, 1036, 1760, 34), hints, StringAlignment.Center, pad, Color.FromArgb(200, 220, 220, 228));
         }
 
         void DrawFailure(Graphics g)

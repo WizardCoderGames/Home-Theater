@@ -16,12 +16,39 @@ namespace Theater
 
     static class Ui
     {
-        public static readonly Color Bg = Color.FromArgb(11, 12, 16);
-        public static readonly Color Panel = Color.FromArgb(24, 26, 33);
-        public static readonly Color Panel2 = Color.FromArgb(38, 41, 51);
-        public static readonly Color Ink = Color.FromArgb(242, 242, 246);
-        public static readonly Color Dim = Color.FromArgb(150, 154, 168);
-        public static readonly Color Accent = Color.FromArgb(255, 176, 32);
+        // The colors of the current theme (Settings > Theme).
+        public static Color Bg = Color.FromArgb(11, 12, 16);
+        public static Color Panel = Color.FromArgb(24, 26, 33);
+        public static Color Panel2 = Color.FromArgb(38, 41, 51);
+        public static Color Ink = Color.FromArgb(242, 242, 246);
+        public static Color Dim = Color.FromArgb(150, 154, 168);
+        public static Color Accent = Color.FromArgb(255, 176, 32);
+
+        public class Theme { public string Key, Name; public Color Bg, Panel, Panel2, Ink, Dim, Accent; }
+
+        static Theme T(string key, string name, int bg, int panel, int panel2, int ink, int dim, int accent)
+        {
+            Func<int, Color> c = v => Color.FromArgb(255, Color.FromArgb(v));
+            return new Theme { Key = key, Name = name, Bg = c(bg), Panel = c(panel), Panel2 = c(panel2), Ink = c(ink), Dim = c(dim), Accent = c(accent) };
+        }
+
+        public static readonly Theme[] Themes = {
+            T("gold", "Midnight gold", 0x0B0C10, 0x181A21, 0x262933, 0xF2F2F6, 0x969AA8, 0xFFB020),
+            T("blue", "Ocean blue", 0x080E18, 0x141E2E, 0x223248, 0xF0F4FA, 0x8C9CB4, 0x40AAFF),
+            T("red", "Cinema red", 0x0E0A0C, 0x1E161A, 0x30222A, 0xF6F0F2, 0xAA969E, 0xEB4050),
+            T("green", "Emerald", 0x080E0C, 0x121E1A, 0x1E302A, 0xEEF6F2, 0x8CA89C, 0x2ECC80),
+            T("purple", "Royal purple", 0x0C0A14, 0x1A1628, 0x2A243E, 0xF4F0FA, 0x9C94B4, 0xAA78FF),
+            T("orange", "Sunset orange", 0x100B09, 0x201814, 0x342620, 0xF8F2EE, 0xAC9C94, 0xFF783C),
+            T("gray", "Graphite", 0x101010, 0x1E1E1E, 0x303030, 0xF5F5F5, 0xA0A0A0, 0xDCDCDC),
+        };
+
+        public static Theme FindTheme(string key) { foreach (var t in Themes) if (t.Key == key) return t; return Themes[0]; }
+
+        public static void SetTheme(string key)
+        {
+            var t = FindTheme(key);
+            Bg = t.Bg; Panel = t.Panel; Panel2 = t.Panel2; Ink = t.Ink; Dim = t.Dim; Accent = t.Accent;
+        }
         public const string IconFont = "Segoe MDL2 Assets";
 
         static readonly Dictionary<string, Font> fonts = new Dictionary<string, Font>();
@@ -127,6 +154,69 @@ namespace Theater
             FillRound(g, bg, new RectangleF(x, y, w, h), 5);
             Text(g, text, f, fg, new RectangleF(x, y, w, h), StringAlignment.Center, StringAlignment.Center);
             return w;
+        }
+
+        // A row of button hints, e.g. "Arrows~Enter:Choose|Esc:Back" (~ joins buttons used together). Controller face buttons (A, B, X, Y) are drawn
+        // as colored round buttons; anything else as a key cap. Returns the row's width.
+        public static float Hints(Graphics g, RectangleF r, string spec, StringAlignment align, bool pad, Color? labelColor = null)
+        {
+            var kf = F(15, 2);
+            var lf = F(18);
+            var items = new List<Tuple<string[], string, float>>();
+            float total = 0;
+            foreach (var part in spec.Split('|'))
+            {
+                int c = part.LastIndexOf(':');
+                var caps = c > 0 ? part.Substring(0, c).Split('~') : new string[0];   // no colon: just words
+                string label = c > 0 ? part.Substring(c + 1) : part;
+                float w = 0;
+                foreach (var k in caps) w += CapWidth(g, k, kf, pad) + 4;
+                w += 6 + Width(g, label, lf);
+                items.Add(Tuple.Create(caps, label, w));
+                total += w + 30;
+            }
+            total -= 30;
+            float x = align == StringAlignment.Center ? r.X + (r.Width - total) / 2 : align == StringAlignment.Far ? r.Right - total : r.X;
+            float cy = r.Y + r.Height / 2;
+            foreach (var it in items)
+            {
+                foreach (var k in it.Item1)
+                {
+                    float w = CapWidth(g, k, kf, pad);
+                    var cap = new RectangleF(x, cy - 13, w, 26);
+                    Color face;
+                    if (pad && k.Length == 1 && FaceColor(k[0], out face))
+                    {
+                        using (var b = new SolidBrush(face)) g.FillEllipse(b, cap);
+                        Text(g, k, kf, Color.FromArgb(20, 20, 24), cap, StringAlignment.Center, StringAlignment.Center);
+                    }
+                    else
+                    {
+                        FillRound(g, Color.FromArgb(70, 255, 255, 255), cap, 6);
+                        Text(g, k, kf, Color.White, cap, StringAlignment.Center, StringAlignment.Center);
+                    }
+                    x += w + 4;
+                }
+                x += 6;
+                Text(g, it.Item2, lf, labelColor ?? Dim, new RectangleF(x, cy - 14, it.Item3 + 10, 30), StringAlignment.Near, StringAlignment.Center);
+                x += Width(g, it.Item2, lf) + 30;
+            }
+            return total;
+        }
+
+        static float CapWidth(Graphics g, string k, Font f, bool pad) { Color c; return pad && k.Length == 1 && FaceColor(k[0], out c) ? 26 : Math.Max(26, Width(g, k, f) + 16); }
+
+        static bool FaceColor(char k, out Color c)
+        {
+            switch (k)
+            {
+                case 'A': c = Color.FromArgb(110, 196, 72); return true;
+                case 'B': c = Color.FromArgb(236, 84, 70); return true;
+                case 'X': c = Color.FromArgb(64, 148, 240); return true;
+                case 'Y': c = Color.FromArgb(244, 196, 48); return true;
+            }
+            c = Color.Empty;
+            return false;
         }
 
         public static void Disc(Graphics g, PointF c, float r, Color col)
@@ -565,8 +655,8 @@ namespace Theater
             string line = "";
             if (hero.Kind == Kind.Disc && hero.Encrypted && F.Cfg.DiscPlayer == "")
                 line = "Copy-protected disc — needs a licensed disc player (see Settings)";
-            else if (hero.Kind == Kind.Disc && hero.DiscType == "Data disc") line = "Press OK to browse the videos on this disc";
-            else if (hero.Kind == Kind.Collection) line = "Press OK to open";
+            else if (hero.Kind == Kind.Disc && hero.DiscType == "Data disc") line = "Press " + F.OkButton + " to browse the videos on this disc";
+            else if (hero.Kind == Kind.Collection) line = "Press " + F.OkButton + " to open";
             else if (hero.Kind == Kind.Movie && hero.Path != null) line = Path.GetFileName(hero.Path);
             Ui.Text(g, line, Ui.F(19), Ui.Dim, new RectangleF(80, 312, 1100, 28));
 
@@ -945,14 +1035,14 @@ namespace Theater
             Add("Display", "Animations", F.AnimationLabel, () => F.ShowDialog("Animations",
                 "Automatic keeps smooth sliding animations unless this PC can't draw them quickly, then switches to instant moves.",
                 new[] { "Automatic", "Always on", "Off (fastest)" }, i => { if (i >= 0) { F.SetAnimations(i == 0 ? "auto" : i == 1 ? "on" : "off"); Refresh(); } }));
+            Add("Display", "Theme", Ui.FindTheme(c.Theme).Name, ChooseTheme);
 
             Add("Phone & network", "Phone remote", F.RemoteUrl + "   ·   code " + c.Code, () => F.ShowDialog("Phone remote",
                 "Scan the QR code with your phone's camera (same Wi-Fi), or open " + F.RemoteUrl + " in its browser. A code pops up here to type on the phone.\n\nTip: in Chrome, use ⋮ → Add to Home screen so it opens like an app.",
                 new[] { "Done", "Make a new code" }, i => { if (i == 1) { c.Code = Settings.NewCode(); c.Save(); Refresh(); } }));
             Add("Phone & network", "Phone QR popup", c.PhonePrompt ? "At start, and when the phone disconnects" : "Off", () => { c.PhonePrompt = !c.PhonePrompt; c.Save(); Refresh(); });
-            Add("Phone & network", "Wi-Fi", wifi == null ? "Checking…" : wifi.Connected ? wifi.Ssid + (wifi.Signal != "" ? "  ·  " + wifi.Signal + " signal" : "") + (c.WifiAuto != "" ? "  ·  auto-connect on" : "") : "Not connected", ChooseWifi);
+            Add("Phone & network", "Wi-Fi settings", wifi == null ? "Checking…" : wifi.Connected ? wifi.Ssid + (wifi.Signal != "" ? "  ·  " + wifi.Signal + " signal" : "") : "Not connected  ·  Wi-Fi or Ethernet", () => F.Push(new WifiScreen(F)));
             Add("Phone & network", "Start with Windows", startup ? "On" : "Off", ToggleStartup);
-            Add("Phone & network", "Wake this PC from your phone", "Wake-on-LAN details", ShowWakeInfo);
 
             Add("System", "System info", "CPU, graphics, memory and usage", () => F.Push(new InfoScreen(F)));
             Add("System", "Check for updates", "Version " + Updater.Current + "  \u00B7  " + F.UpdateStatus, () => F.CheckForUpdates(true));
@@ -1002,51 +1092,14 @@ namespace Theater
                 labels.ToArray(), i => { if (i >= 0 && i < choices.Count) F.SetResolution(choices[i]); Refresh(); });
         }
 
-        void ChooseWifi()
+        void ChooseTheme()
         {
-            F.ShowToast("Looking for saved Wi-Fi networks…", 3);
-            Task.Run(() => Wifi.SavedNetworks()).ContinueWith(t => F.BeginInvoke((Action)(() =>
-            {
-                var nets = t.IsFaulted ? new List<string>() : t.Result.Take(6).ToList();
-                bool auto = F.Cfg.WifiAuto != "";
-                var opts = new List<string>();
-                foreach (var n in nets) opts.Add("Connect to " + n + (wifi != null && wifi.Connected && wifi.Ssid == n ? "  (connected)" : ""));
-                opts.Add("Auto-connect when the app starts: " + (auto ? "On" : "Off"));
-                opts.Add("Cancel");
-                string status = wifi == null ? "" : wifi.Connected ? "Connected to " + wifi.Ssid + "." : "Not connected.";
-                F.ShowDialog("Wi-Fi", status + "\n\nWith auto-connect on, if the app starts with Windows before Wi-Fi is up, it connects to your network so the phone remote works right away.",
-                    opts.ToArray(), i =>
-                    {
-                        if (i < 0) return;
-                        if (i < nets.Count)
-                        {
-                            string net = nets[i];
-                            F.ShowToast("Connecting to " + net + "…", 10);
-                            Task.Run(() => Wifi.Connect(net)).ContinueWith(c => F.BeginInvoke((Action)(() =>
-                            {
-                                F.ShowToast(c.Result ? "Connecting to " + net : "Couldn't connect to " + net, 4);
-                                Task.Delay(4000).ContinueWith(_ => { var w = Wifi.Get(); F.BeginInvoke((Action)(() => { wifi = w; F.UpdateRemoteUrl(); Refresh(); })); });
-                            })));
-                        }
-                        else if (i == nets.Count)
-                        {
-                            F.Cfg.WifiAuto = auto ? "" : (wifi != null && wifi.Connected ? wifi.Ssid : (nets.Count > 0 ? nets[0] : ""));
-                            F.Cfg.Save();
-                            Refresh();
-                        }
-                    });
-            })));
-        }
-
-        void ShowWakeInfo()
-        {
-            string mac, broadcast, adapter;
-            if (!WakeOnLan.Find(out mac, out broadcast, out adapter)) { F.ShowToast("No network connection right now", 3); return; }
-            F.ShowDialog("Wake this PC from your phone",
-                "Install a free \u201CWake On LAN\u201D app on your phone and add this PC:\n\n" +
-                "MAC address:  " + mac + "\nBroadcast address:  " + broadcast + "\nPort:  9\n\n" +
-                "Over Wi-Fi this wakes the PC from sleep. To turn it on from a full shutdown, the PC needs an Ethernet cable and \u201CWake on LAN\u201D turned on in its BIOS. The phone must be on the same network. Network card: " + adapter + ".",
-                new[] { "Done" }, i => { });
+            var names = new List<string>();
+            string cur = Ui.FindTheme(F.Cfg.Theme).Key;
+            foreach (var t in Ui.Themes) names.Add(t.Name + (t.Key == cur ? "  (current)" : ""));
+            names.Add("Cancel");
+            F.ShowDialog("Theme", "Changes the colors of the menus, highlights and playback controls.",
+                names.ToArray(), i => { if (i >= 0 && i < Ui.Themes.Length) { F.ApplyTheme(Ui.Themes[i].Key); F.ShowToast(Ui.Themes[i].Name + " theme", 2); } });
         }
 
         void ToggleStartup()
@@ -1154,7 +1207,7 @@ namespace Theater
             }
             g.Restore(state);
             DrawPhoneCard(g);
-            Ui.Text(g, "Arrows + OK to choose  ·  Esc = back  ·  F11 = window  ·  Info button = system info", Ui.F(18), Ui.Dim, new RectangleF(104, 1022, 1700, 30));
+            Ui.Hints(g, new RectangleF(104, 1022, 1700, 30), F.UsingController ? "D-pad~A:Choose|B:Back|Y:System info" : "Arrows~Enter:Choose|Esc:Back|F11:Window|F1:System info", StringAlignment.Near, F.UsingController);
         }
 
         void DrawPhoneCard(Graphics g)
@@ -1248,11 +1301,13 @@ namespace Theater
     class InfoScreen : Screen
     {
         Wifi.Status wifi;
+        Wifi.Wired wired;
 
         public InfoScreen(TheaterForm f) : base(f)
         {
             F.Stats.Start();
             Task.Run(() => Wifi.Get()).ContinueWith(t => F.BeginInvoke((Action)(() => { if (!t.IsFaulted) wifi = t.Result; F.Kick(); })));
+            Task.Run(() => Wifi.Ethernet()).ContinueWith(t => F.BeginInvoke((Action)(() => { if (!t.IsFaulted) wired = t.Result; F.Kick(); })));
         }
 
         public override string Name { get { return "info"; } }
@@ -1313,24 +1368,53 @@ namespace Theater
             var cur = F.CurrentResolution(out hz);
             var disp = new List<Tuple<string, string, float>> {
                 L("Screen", cur.Width + " × " + cur.Height + (hz > 1 ? " at " + hz + " Hz" : "")),
-                L("Resolution setting", F.ResolutionLabel),
-                L("Animations", F.AnimationLabel),
                 L("Hardware acceleration", SettingsScreen.HwLabel(F.Cfg.HwDecode)),
                 L("Video renderer", SettingsScreen.RendererLabel(F.Cfg.Renderer)),
-            };
-            var net = new List<Tuple<string, string, float>> {
                 L("Wi-Fi", wifi == null ? "…" : wifi.Connected ? wifi.Ssid + (wifi.Signal != "" ? " · " + wifi.Signal : "") : "Not connected"),
-                L("Phone remote", F.RemoteUrl),
-                L("Start with Windows", StartWithWindowsSafe() ? "On" : "Off"),
+                L("Ethernet", wired == null ? "…" : !wired.Present ? "No Ethernet port" : wired.Connected ? "Connected" + (wired.Speed != "" ? " · " + wired.Speed : "") : "No cable plugged in"),
             };
 
-            Card(g, new RectangleF(104, 150, 840, 330), "", "Processor", cpu);
-            Card(g, new RectangleF(976, 150, 840, 330), "", "Graphics", gpu);
-            Card(g, new RectangleF(104, 506, 840, 300), "", "Memory", mem);
-            Card(g, new RectangleF(976, 506, 840, 300), "", "Display & playback", disp);
-            Card(g, new RectangleF(104, 832, 1712, 168), "", "Network", new List<Tuple<string, string, float>> { net[0] });
-            Ui.Text(g, "Phone remote  " + net[1].Item2 + "      Start with Windows  " + net[2].Item2, Ui.F(19), Ui.Dim, new RectangleF(1000, 864, 790, 30), StringAlignment.Far);
-            Ui.Text(g, "Updates every second  ·  Esc = back", Ui.F(18), Ui.Dim, new RectangleF(104, 1022, 1700, 30));
+            Card(g, new RectangleF(104, 140, 840, 288), "", "Processor", cpu);
+            Card(g, new RectangleF(976, 140, 840, 288), "", "Graphics", gpu);
+            Card(g, new RectangleF(104, 448, 840, 288), "", "Memory", mem);
+            Card(g, new RectangleF(976, 448, 840, 288), "", "Display & network", disp);
+            DrivesCard(g, new RectangleF(104, 756, 1712, 252), s.DriveList);
+            Ui.Text(g, "Updates every second  ·  Phone remote " + F.RemoteUrl + "  ·  Start with Windows " + (StartWithWindowsSafe() ? "on" : "off"), Ui.F(18), Ui.Dim, new RectangleF(104, 1024, 1400, 30));
+            Ui.Hints(g, new RectangleF(1416, 1022, 400, 30), F.UsingController ? "B:Back" : "Esc:Back", StringAlignment.Far, F.UsingController);
+        }
+
+        // Every drive with a bar for how full it is, in up to three columns.
+        void DrivesCard(Graphics g, RectangleF r, List<Drives.Drive> drives)
+        {
+            Ui.FillRound(g, Ui.Panel, r, 18);
+            Ui.Text(g, "", Ui.F(26, 9), Ui.Accent, new RectangleF(r.X + 34, r.Y + 30, 40, 40));
+            Ui.Text(g, "Drives", Ui.F(26, 2), Ui.Ink, new RectangleF(r.X + 80, r.Y + 28, 600, 40));
+            if (drives.Count == 0) { Ui.Text(g, "…", Ui.F(21, 1), Ui.Ink, new RectangleF(r.X + 34, r.Y + 88, 400, 30)); return; }
+            long total = 0, free = 0;
+            foreach (var d in drives) { total += d.Total; free += d.Free; }
+            Ui.Text(g, drives.Count + (drives.Count == 1 ? " drive" : " drives") + "  ·  " + Gb(free) + " free of " + Gb(total), Ui.F(19), Ui.Dim, new RectangleF(r.X + 600, r.Y + 34, r.Width - 634, 30), StringAlignment.Far);
+            // Up to 3 drives side by side; more fill columns of up to three.
+            int cols = drives.Count <= 3 ? drives.Count : drives.Count <= 6 ? 2 : 3;
+            int perCol = Math.Min(3, (drives.Count + cols - 1) / cols);
+            float gap = 56, colW = (r.Width - 68 - (cols - 1) * gap) / cols;
+            var usbRoots = new HashSet<string>();
+            foreach (var u in F.Usb) usbRoots.Add(u.Root.TrimEnd('\\').ToUpperInvariant());
+            int shown = Math.Min(drives.Count, cols * perCol);
+            for (int i = 0; i < shown; i++)
+            {
+                var d = drives[i];
+                float x = r.X + 34 + (i / perCol) * (colW + gap);
+                float y = r.Y + 86 + (i % perCol) * 54;
+                bool usb = d.Usb || usbRoots.Contains(d.Letter.ToUpperInvariant());
+                string name = d.Letter + "  " + (d.Label != "" ? d.Label : usb ? "USB drive" : "Local disk") + (usb && d.Label != "" ? " (USB)" : "");
+                if (i == shown - 1 && shown < drives.Count) name += "  +" + (drives.Count - shown) + " more";
+                Ui.Text(g, name, Ui.F(19), Ui.Dim, new RectangleF(x, y, colW * 0.55f, 30));
+                Ui.Text(g, Gb(d.Free) + " free of " + Gb(d.Total), Ui.F(21, 1), Ui.Ink, new RectangleF(x + colW * 0.45f, y - 1, colW * 0.55f, 30), StringAlignment.Far);
+                float pct = d.Total > 0 ? 100f * d.Used / d.Total : 0;
+                Ui.FillRound(g, Ui.Panel2, new RectangleF(x, y + 33, colW, 10), 5);
+                Ui.FillRound(g, pct > 90 ? Color.FromArgb(240, 90, 80) : Ui.Accent, new RectangleF(x, y + 33, Math.Max(10, colW * Math.Min(100, pct) / 100f), 10), 5);
+                if (perCol == 1) Ui.Text(g, Gb(d.Used) + " used (" + pct.ToString("0") + "%)" + (d.Format != "" ? "  ·  " + d.Format : "") + (usb ? "  ·  USB" : ""), Ui.F(18), Ui.Dim, new RectangleF(x, y + 54, colW, 28));
+            }
         }
 
         static bool StartWithWindowsSafe() { try { return StartWithWindows.Enabled; } catch { return false; } }
