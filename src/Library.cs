@@ -35,6 +35,7 @@ namespace Theater
         public bool UsbAuto = true;          // add movies from USB drives while they're plugged in
         public bool PhonePrompt = true;      // show the phone QR code at start and when the phone disconnects
         public string Theme = "gold";        // a Ui.Themes key
+        public string MenuSounds = "normal"; // normal, quiet or off
 
         // Extra VLC options for the hardware acceleration and renderer choices.
         public string VlcArgs()
@@ -79,6 +80,7 @@ namespace Theater
                             case "usbauto": s.UsbAuto = v != "0"; break;
                             case "phoneprompt": s.PhonePrompt = v != "0"; break;
                             case "theme": s.Theme = v; break;
+                            case "sounds": s.MenuSounds = v; break;
                         }
                     }
                 }
@@ -143,6 +145,7 @@ namespace Theater
                 lines.Add("usbauto=" + (UsbAuto ? "1" : "0"));
                 lines.Add("phoneprompt=" + (PhonePrompt ? "1" : "0"));
                 lines.Add("theme=" + Theme);
+                lines.Add("sounds=" + MenuSounds);
                 File.WriteAllLines(FilePath, lines);
             }
             catch { }

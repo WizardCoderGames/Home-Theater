@@ -15,8 +15,8 @@ using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("Eric's Home Theater")]
 [assembly: System.Reflection.AssemblyProduct("Eric's Home Theater")]
-[assembly: System.Reflection.AssemblyVersion("1.6.1.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.6.1.0")]
+[assembly: System.Reflection.AssemblyVersion("1.6.2.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.6.2.0")]
 
 namespace Theater
 {
@@ -140,6 +140,7 @@ namespace Theater
             Art = new CardArt(this);
             Ui.Smooth = Cfg.Anim != "off";
             Ui.SetTheme(Cfg.Theme);
+            Sounds.Level = Cfg.MenuSounds;
 
             Text = AppInfo.Name;
             BackColor = Ui.Bg;
@@ -465,7 +466,7 @@ namespace Theater
             if (NoteLocalInput(true)) return;
             if (WindowState == FormWindowState.Minimized) return;
             if (Player.Active) Player.Act(a);
-            else if (a == Act.Home && dialog == null) { GoHome(); Current.Act(Act.Home); }
+            else if (a == Act.Home && dialog == null) { GoHome(); Current.Act(Act.Home); Sounds.Play(Sfx.Back); }
             else Dispatch(a);
         }
 
@@ -1176,6 +1177,26 @@ namespace Theater
         public void Dispatch(Act a)
         {
             if (a == Act.None) return;
+            string before = NavKey();
+            Route(a);
+            switch (a)
+            {
+                // A direction that didn't move anything (end of a row, top of a list) gets a bump instead of a tick.
+                case Act.Up: case Act.Down: case Act.Left: case Act.Right: Sounds.Play(NavKey() != before ? Sfx.Move : Sfx.Bump); break;
+                case Act.Ok: case Act.Menu: case Act.Info: case Act.Search: Sounds.Play(Sfx.Select); break;
+                case Act.Back: case Act.Home: Sounds.Play(Sfx.Back); break;
+            }
+        }
+
+        // Where the focus is: changes whenever a move did something.
+        string NavKey()
+        {
+            if (Player.Active) return "player";
+            return dialog != null ? "dialog|" + dialog.Title + "|" + dialog.Sel : stack.Count + "|" + Current.Name + "|" + Current.FocusKey;
+        }
+
+        void Route(Act a)
+        {
             lastInput = DateTime.Now;
             if (a == Act.Info && dialog == null && !(Current is InfoScreen)) { Push(new InfoScreen(this)); return; }
             if (dialog != null)
@@ -1232,9 +1253,10 @@ namespace Theater
             if (dialog != null)
             {
                 int i = dialog.Hit(p);
-                if (i >= 0) { var d = dialog; dialog = null; if (d.Done != null) d.Done(i); Kick(); }
+                if (i >= 0) { Sounds.Play(Sfx.Select); var d = dialog; dialog = null; if (d.Done != null) d.Done(i); Kick(); }
                 return;
             }
+            Sounds.Play(Sfx.Select);
             Current.Click(p);
             Kick();
         }
@@ -1265,7 +1287,7 @@ namespace Theater
             NoteOtherInput();
             if (WindowState == FormWindowState.Minimized) return;
             if (Player.Active) Player.Act(a);
-            else if (a == Act.Home && dialog == null) { GoHome(); Current.Act(Act.Home); }   // back to the home screen, top row
+            else if (a == Act.Home && dialog == null) { GoHome(); Current.Act(Act.Home); Sounds.Play(Sfx.Back); }   // back to the home screen, top row
             else Dispatch(a);
         }
 

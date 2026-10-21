@@ -20,6 +20,7 @@ It plays the movie files already on your PC (MKV, MP4, AVI and more, up to 4K HD
 - **Playback options for tricky hardware.** Choose hardware acceleration (Automatic, Direct3D 11, DXVA2 or off) and the video renderer (Direct3D 11, Direct3D 9, OpenGL or Windows GDI).
 - **System info.** A live view of the processor, graphics card, memory, CPU and GPU load, display and network, plus every drive with its size and free space.
 - **Wi-Fi settings.** See Ethernet and nearby Wi-Fi networks and connect from the couch. Type a new network's password with a keyboard, an on-screen keyboard (arrows or a controller), or your phone.
+- **Menu sounds.** Soft clicks when you move, select and go back, and a bump at the end of a row. Set them to On, Quiet or Off in **Settings → Menu sounds**; they never play during a movie.
 - **Themes.** Seven color themes: Midnight gold, Ocean blue, Cinema red, Emerald, Royal purple, Sunset orange and Graphite (**Settings → Theme**).
 - **Updates itself.** When a new version is published here, the app downloads it, checks it, and updates and reopens itself; it never interrupts a movie.
 

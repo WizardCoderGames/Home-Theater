@@ -341,6 +341,7 @@ namespace Theater
         public virtual void Refresh() { }
         public virtual void Leave() { }
         public virtual string FocusTitle { get { return ""; } }
+        public virtual string FocusKey { get { return FocusTitle; } }   // identifies the focused thing (for move sounds)
 
         protected void DrawClock(Graphics g)
         {
@@ -1036,6 +1037,17 @@ namespace Theater
                 "Automatic keeps smooth sliding animations unless this PC can't draw them quickly, then switches to instant moves.",
                 new[] { "Automatic", "Always on", "Off (fastest)" }, i => { if (i >= 0) { F.SetAnimations(i == 0 ? "auto" : i == 1 ? "on" : "off"); Refresh(); } }));
             Add("Display", "Theme", Ui.FindTheme(c.Theme).Name, ChooseTheme);
+            Add("Display", "Menu sounds", Sounds.Label(Sounds.Level), () => F.ShowDialog("Menu sounds",
+                "Soft clicks when you move around, select and go back. They never play during a movie.",
+                new[] { "On (normal volume)", "Quiet", "Off", "Cancel" }, i =>
+                {
+                    if (i < 0 || i > 2) return;
+                    Sounds.Level = i == 0 ? "normal" : i == 1 ? "quiet" : "off";
+                    c.MenuSounds = Sounds.Level;
+                    c.Save();
+                    Sounds.Play(Sfx.Select);   // a sample at the new volume
+                    Refresh();
+                }));
 
             Add("Phone & network", "Phone remote", F.RemoteUrl + "   ·   code " + c.Code, () => F.ShowDialog("Phone remote",
                 "Scan the QR code with your phone's camera (same Wi-Fi), or open " + F.RemoteUrl + " in its browser. A code pops up here to type on the phone.\n\nTip: in Chrome, use ⋮ → Add to Home screen so it opens like an app.",

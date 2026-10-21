@@ -312,6 +312,7 @@ namespace Theater
         public override string Name { get { return "wifipass"; } }
         public override string FocusTitle { get { return "Wi-Fi password for " + net.Ssid; } }   // never the password itself
         public override bool WantsText { get { return true; } }
+        public override string FocusKey { get { return "key" + focus; } }
 
         void BuildKeys()
         {
