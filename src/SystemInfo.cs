@@ -356,31 +356,44 @@ namespace Theater
 
         Thread thread;
         volatile bool running;
+        volatile int generation;   // each Start gets a new number, so an older loop that's still finishing stops
 
         public void Start()
         {
             if (running) return;
             running = true;
-            thread = new Thread(Loop) { IsBackground = true, Name = "stats", Priority = ThreadPriority.BelowNormal };
+            int gen = ++generation;
+            thread = new Thread(() => Loop(gen)) { IsBackground = true, Name = "stats", Priority = ThreadPriority.BelowNormal };
             thread.Start();
         }
 
         public void Stop() { running = false; }
 
-        void Loop()
+        bool Live(int gen) { return running && gen == generation; }
+
+        void Loop(int gen)
         {
-            try
-            {
-                using (var s = new ManagementObjectSearcher("SELECT Name, NumberOfCores, NumberOfLogicalProcessors FROM Win32_Processor"))
-                    foreach (ManagementObject o in s.Get())
-                    {
-                        CpuName = Regex.Replace(Convert.ToString(o["Name"]).Trim(), @"\s+", " ");
-                        Cores += Convert.ToInt32(o["NumberOfCores"]);
-                        Threads += Convert.ToInt32(o["NumberOfLogicalProcessors"]);
-                    }
-            }
-            catch { }
-            Gpus = ReadGpus();
+            // The processor doesn't change, so it's read once. Totals are summed over sockets
+            // (multi-processor PCs), then stored, so opening System info again doesn't add them up twice.
+            if (Cores == 0)
+                try
+                {
+                    string name = "";
+                    int cores = 0, threads = 0;
+                    using (var s = new ManagementObjectSearcher("SELECT Name, NumberOfCores, NumberOfLogicalProcessors FROM Win32_Processor"))
+                        foreach (ManagementObject o in s.Get())
+                        {
+                            name = Regex.Replace(Convert.ToString(o["Name"]).Trim(), @"\s+", " ");
+                            cores += Convert.ToInt32(o["NumberOfCores"]);
+                            threads += Convert.ToInt32(o["NumberOfLogicalProcessors"]);
+                        }
+                    if (threads <= 0) threads = Environment.ProcessorCount;
+                    CpuName = name;
+                    Threads = threads;
+                    Cores = cores > 0 ? cores : threads;
+                }
+                catch { }
+            if (Gpus.Count == 0) Gpus = ReadGpus();
 
             PerformanceCounter cpu = null;
             try { cpu = new PerformanceCounter("Processor", "% Processor Time", "_Total"); cpu.NextValue(); } catch { cpu = null; }
@@ -390,7 +403,7 @@ namespace Theater
             TimeSpan lastCpu = me.TotalProcessorTime;
             DateTime lastAt = DateTime.Now;
 
-            while (running)
+            while (Live(gen))
             {
                 try
                 {
@@ -445,7 +458,7 @@ namespace Theater
                     GpuVideoPercent = any ? Math.Min(100, gvid) : -1;
                 }
                 catch { }
-                for (int i = 0; i < 10 && running; i++) Thread.Sleep(100);
+                for (int i = 0; i < 10 && Live(gen); i++) Thread.Sleep(100);
             }
             if (cpu != null) cpu.Dispose();
             foreach (var c in gpuCounters) c.Dispose();
