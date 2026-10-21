@@ -1,4 +1,4 @@
-// Windows helpers: display resolution, start-with-Windows, Wi-Fi, and live hardware readings.
+﻿// Windows helpers: display resolution, start-with-Windows, Wi-Fi, and live hardware readings.
 
 using System;
 using System.Collections.Generic;
@@ -322,5 +322,35 @@ namespace Theater
         }
 
         [DllImport("kernel32.dll")] static extern bool GlobalMemoryStatusEx(ref MemStatus m);
+    }
+
+    // What a phone's Wake-on-LAN app needs to wake this PC: its network card's MAC address and the broadcast address.
+    static class WakeOnLan
+    {
+        public static bool Find(out string mac, out string broadcast, out string adapter)
+        {
+            mac = broadcast = adapter = "";
+            try
+            {
+                foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (ni.OperationalStatus != OperationalStatus.Up || ni.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
+                    var props = ni.GetIPProperties();
+                    if (props.GatewayAddresses.Count == 0) continue;
+                    foreach (var u in props.UnicastAddresses)
+                    {
+                        if (u.Address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork || u.IPv4Mask == null) continue;
+                        byte[] ip = u.Address.GetAddressBytes(), mask = u.IPv4Mask.GetAddressBytes(), b = new byte[4];
+                        for (int i = 0; i < 4; i++) b[i] = (byte)(ip[i] | ~mask[i]);
+                        broadcast = new System.Net.IPAddress(b).ToString();
+                        mac = string.Join(":", ni.GetPhysicalAddress().GetAddressBytes().Select(x => x.ToString("X2")));
+                        adapter = ni.Description;
+                        return true;
+                    }
+                }
+            }
+            catch { }
+            return false;
+        }
     }
 }

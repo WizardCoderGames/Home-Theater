@@ -480,7 +480,8 @@
         $('#focus').textContent = '';
       } else {
         now.classList.add('hidden');
-        $('#focus').textContent = s.dialog ? 'On screen: ' + s.dialog : s.focus ? 'Selected: ' + s.focus : '';
+        $('#focus').textContent = s.screen === 'standby' ? 'On standby \u2014 press any button to bring it back on the TV'
+          : s.dialog ? 'On screen: ' + s.dialog : s.focus ? 'Selected: ' + s.focus : '';
       }
     } catch (e) {
       online = false;

@@ -25,8 +25,8 @@ using Theater;
 
 [assembly: AssemblyTitle("Eric's Home Theater Setup")]
 [assembly: AssemblyProduct("Eric's Home Theater")]
-[assembly: AssemblyVersion("1.5.3.0")]
-[assembly: AssemblyFileVersion("1.5.3.0")]
+[assembly: AssemblyVersion("1.5.4.0")]
+[assembly: AssemblyFileVersion("1.5.4.0")]
 
 namespace TheaterSetup
 {
@@ -42,7 +42,7 @@ namespace TheaterSetup
     static class Setup
     {
         public const string Name = "Eric's Home Theater";
-        public const string Version = "1.5.3";
+        public const string Version = "1.5.4";
         public const string ExeName = "EricsHomeTheater.exe";
         const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\EricsHomeTheater";
         const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -218,8 +218,8 @@ namespace TheaterSetup
                     // Other programs that happen to share a name are left alone.
                     if (!string.Equals(name, Path.GetFileNameWithoutExtension(ExeName), StringComparison.OrdinalIgnoreCase)
                         && !string.Equals(p.MainModule.FileName, exePath, StringComparison.OrdinalIgnoreCase)) { p.Dispose(); continue; }
-                    p.CloseMainWindow();
-                    if (!p.WaitForExit(6000)) { p.Kill(); p.WaitForExit(3000); }
+                    // A copy on standby has no visible window to close, so it's ended directly.
+                    if (!p.CloseMainWindow() || !p.WaitForExit(6000)) { p.Kill(); p.WaitForExit(3000); }
                 }
                 catch { }
                 p.Dispose();

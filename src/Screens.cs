@@ -952,6 +952,7 @@ namespace Theater
             Add("Phone & network", "Phone QR popup", c.PhonePrompt ? "At start, and when the phone disconnects" : "Off", () => { c.PhonePrompt = !c.PhonePrompt; c.Save(); Refresh(); });
             Add("Phone & network", "Wi-Fi", wifi == null ? "Checking…" : wifi.Connected ? wifi.Ssid + (wifi.Signal != "" ? "  ·  " + wifi.Signal + " signal" : "") + (c.WifiAuto != "" ? "  ·  auto-connect on" : "") : "Not connected", ChooseWifi);
             Add("Phone & network", "Start with Windows", startup ? "On" : "Off", ToggleStartup);
+            Add("Phone & network", "Wake this PC from your phone", "Wake-on-LAN details", ShowWakeInfo);
 
             Add("System", "System info", "CPU, graphics, memory and usage", () => F.Push(new InfoScreen(F)));
             Add("System", "Check for updates", "Version " + Updater.Current + "  \u00B7  " + F.UpdateStatus, () => F.CheckForUpdates(true));
@@ -1035,6 +1036,17 @@ namespace Theater
                         }
                     });
             })));
+        }
+
+        void ShowWakeInfo()
+        {
+            string mac, broadcast, adapter;
+            if (!WakeOnLan.Find(out mac, out broadcast, out adapter)) { F.ShowToast("No network connection right now", 3); return; }
+            F.ShowDialog("Wake this PC from your phone",
+                "Install a free \u201CWake On LAN\u201D app on your phone and add this PC:\n\n" +
+                "MAC address:  " + mac + "\nBroadcast address:  " + broadcast + "\nPort:  9\n\n" +
+                "It wakes the PC from sleep (choose \u201CPut the PC to sleep\u201D when you exit), with the phone on the same Wi-Fi. Network card: " + adapter + ".",
+                new[] { "Done" }, i => { });
         }
 
         void ToggleStartup()
