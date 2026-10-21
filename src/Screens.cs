@@ -1045,7 +1045,7 @@ namespace Theater
             F.ShowDialog("Wake this PC from your phone",
                 "Install a free \u201CWake On LAN\u201D app on your phone and add this PC:\n\n" +
                 "MAC address:  " + mac + "\nBroadcast address:  " + broadcast + "\nPort:  9\n\n" +
-                "It wakes the PC from sleep (choose \u201CPut the PC to sleep\u201D when you exit), with the phone on the same Wi-Fi. Network card: " + adapter + ".",
+                "Over Wi-Fi this wakes the PC from sleep. To turn it on from a full shutdown, the PC needs an Ethernet cable and \u201CWake on LAN\u201D turned on in its BIOS. The phone must be on the same network. Network card: " + adapter + ".",
                 new[] { "Done" }, i => { });
         }
 

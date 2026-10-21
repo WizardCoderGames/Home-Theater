@@ -30,8 +30,7 @@ namespace Theater
             LB = 0x0100, RB = 0x0200, A = 0x1000, B = 0x2000, X = 0x4000, Y = 0x8000;
 
         readonly Action<Act> send;
-        public Action Combo;   // View + Menu pressed together
-        bool lastCombo;
+
         bool useOld, unavailable;
         readonly bool[] connected = new bool[4];
         DateTime nextScan = DateTime.MinValue;
@@ -81,9 +80,6 @@ namespace Theater
                 if (Math.Abs((int)s.Pad.ThumbLY) > Math.Abs((int)ly)) ly = s.Pad.ThumbLY;
             }
 
-            bool combo = (buttons & (Start | BackBtn)) == (Start | BackBtn);
-            if (combo && !lastCombo && Combo != null) Combo();
-            lastCombo = combo;
 
             // Buttons fire once when pressed.
             ushort pressed = (ushort)(buttons & ~lastButtons);

@@ -15,8 +15,8 @@ using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("Eric's Home Theater")]
 [assembly: System.Reflection.AssemblyProduct("Eric's Home Theater")]
-[assembly: System.Reflection.AssemblyVersion("1.5.4.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.5.4.0")]
+[assembly: System.Reflection.AssemblyVersion("1.5.5.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.5.5.0")]
 
 namespace Theater
 {
@@ -84,9 +84,7 @@ namespace Theater
         DateTime lastLocalInput = DateTime.MinValue;
         bool mouseSeen;
         Gamepad pad;
-        bool standby;
-        NotifyIcon tray;
-        public bool OnStandby { get { return standby; } }
+
         readonly Timer padTimer = new Timer { Interval = 33 };
         bool phoneWasConnected, qrShownThisGap, startupQrDone;
         readonly DateTime startedAt = DateTime.Now;
@@ -112,7 +110,8 @@ namespace Theater
         readonly List<UsbDrive> usbAnnounce = new List<UsbDrive>();
         string discSig = "";
         float scale = 1, ox, oy;
-        DateTime lastMouse = DateTime.Now;
+        DateTime lastMouse = DateTime.MinValue;        // real mouse use
+        DateTime lastOtherInput = DateTime.MinValue;   // keyboard, controller or phone remote
         Point lastMousePos;
         RemoteServer server;
         int slowTicks;
@@ -163,9 +162,8 @@ namespace Theater
             };
             slow.Tick += (s, e) => SlowTick();
             pad = new Gamepad(LocalAct);
-            pad.Combo = () => { if (standby) ShowFromStandby(); };   // View + Menu together
-            // Read controllers while this app is in front, and on standby (only to notice View + Menu).
-            padTimer.Tick += (s, e) => { var a = Form.ActiveForm; if (standby || a == this || a is PlayerOverlay) pad.Poll(); };
+            // Read controllers only while this app is in front.
+            padTimer.Tick += (s, e) => { var a = Form.ActiveForm; if (a == this || a is PlayerOverlay) pad.Poll(); };
             discTimer.Tick += (s, e) => { PollDiscs(); PollUsb(); };
             Load += (s, e) => ApplyDisplayMode();
             Shown += (s, e) =>
@@ -190,7 +188,7 @@ namespace Theater
                         while (true)
                         {
                             Program.ShowSignal.WaitOne();
-                            try { BeginInvoke((Action)ShowFromStandby); } catch { return; }
+                            try { BeginInvoke((Action)BringBack); } catch { return; }
                         }
                     }) { IsBackground = true, Name = "show-signal" }.Start();
                 // First update check shortly after start, then every 6 hours.
@@ -209,7 +207,7 @@ namespace Theater
             };
             FormClosing += (s, e) =>
             {
-                if (tray != null) { tray.Visible = false; tray.Dispose(); tray = null; }
+
                 Player.Stop();
                 Vlc.Kill();
                 Stats.Stop();
@@ -314,7 +312,7 @@ namespace Theater
         protected override void WndProc(ref Message m)
         {
             base.WndProc(ref m);
-            if (m.Msg == 0x0312 && m.WParam.ToInt32() == 1) { ShowFromStandby(); return; }   // WM_HOTKEY: Ctrl+Alt+H
+
             const int WM_DEVICECHANGE = 0x219, DBT_DEVICEARRIVAL = 0x8000, DBT_DEVICEREMOVECOMPLETE = 0x8004, DBT_DEVTYP_VOLUME = 2;
             if (m.Msg != WM_DEVICECHANGE || m.LParam == IntPtr.Zero) return;
             long ev = m.WParam.ToInt64();
@@ -449,9 +447,8 @@ namespace Theater
         // A controller button: works like the same key on the keyboard.
         void LocalAct(Act a)
         {
-            if (standby) return;   // on standby only View + Menu does something (see pad.Combo)
+            NoteOtherInput();
             if (NoteLocalInput(true)) return;
-            lastMouse = DateTime.Now;
             if (WindowState == FormWindowState.Minimized) return;
             if (Player.Active) Player.Act(a);
             else if (a == Act.Home && dialog == null) { GoHome(); Current.Act(Act.Home); }
@@ -596,95 +593,46 @@ namespace Theater
 
         public void AskExit()
         {
-            ShowDialog("Exit " + AppInfo.Name + "?",
-                "Standby goes to the desktop and keeps the app ready in the background. To come back, press Ctrl+Alt+H, any button on the phone remote, or View + Menu on a controller.",
-                new[] { "Stay", "Restart the PC", "Standby (exit to desktop)", "Put the PC to sleep", "Quit the app" }, i =>
+            ShowDialog("Exit " + AppInfo.Name + "?", "", new[] { "Stay", "Restart the PC", "Shut down the PC", "Exit to desktop" }, i =>
             {
-                if (i == 1) ConfirmPower(false);
-                else if (i == 2) GoStandby();
-                else if (i == 3) ConfirmPower(true);
-                else if (i == 4) Close();
+                if (i == 1) ConfirmPower(true);
+                else if (i == 2) ConfirmPower(false);
+                else if (i == 3) Close();
             });
         }
 
-        // Sleeping or restarting asks once more and counts down, so a stray press can be cancelled.
-        void ConfirmPower(bool sleep)
+        // Restarting or shutting down asks once more and counts down, so a stray press can be cancelled.
+        void ConfirmPower(bool restart)
         {
             dialog = new Dialog
             {
-                Title = sleep ? "Put the PC to sleep?" : "Restart the PC?",
-                Message = sleep ? "When it wakes, " + AppInfo.Name + " is right where you left it. A phone can wake it too (Settings \u2192 Wake this PC from your phone)."
-                                : "Other open programs will close too, and unsaved work in them may be lost.",
-                Options = new[] { sleep ? "Sleep now" : "Restart now", "Cancel" },
+                Title = (restart ? "Restart" : "Shut down") + " the PC?",
+                Message = "Other open programs will close too, and unsaved work in them may be lost.",
+                Options = new[] { restart ? "Restart now" : "Shut down now", "Cancel" },
                 Expires = DateTime.Now.AddSeconds(15),
-                CountdownFormat = (sleep ? "Going to sleep" : "Restarting") + " in {0} seconds.",
-                Done = i => { if (i == 0 || i == -2) PowerAction(sleep); }   // -2: the countdown ran out
+                CountdownFormat = (restart ? "Restarting" : "Shutting down") + " in {0} seconds.",
+                Done = i => { if (i == 0 || i == -2) PowerOff(restart); }   // -2: the countdown ran out
             };
             Kick();
         }
 
-        void PowerAction(bool sleep)
+        void PowerOff(bool restart)
         {
             try
             {
                 Player.Stop();
-                if (sleep)
-                {
-                    // Windows' own sleep; network wake-up stays allowed so a phone can wake the PC.
-                    if (!Application.SetSuspendState(PowerState.Suspend, false, false)) ShowToast("Windows didn't go to sleep", 4);
-                }
-                else
-                {
-                    // A few seconds' grace lets this app close cleanly (saving settings, restoring the screen resolution).
-                    Process.Start(new ProcessStartInfo("shutdown.exe", "/r /t 5") { UseShellExecute = false, CreateNoWindow = true });
-                    Close();
-                }
+                // A few seconds' grace lets this app close cleanly (saving settings, restoring the screen resolution).
+                Process.Start(new ProcessStartInfo("shutdown.exe", (restart ? "/r" : "/s") + " /t 5") { UseShellExecute = false, CreateNoWindow = true });
+                Close();
             }
-            catch (Exception ex) { ShowToast("Couldn't " + (sleep ? "put the PC to sleep" : "restart the PC") + ": " + ex.Message, 5); }
+            catch (Exception ex) { ShowToast("Couldn't " + (restart ? "restart" : "shut down") + " the PC: " + ex.Message, 5); }
         }
 
-        // ---------- standby ----------
-
-        // "Exit to desktop": hide, give the screen back to Windows, and wait to be called back.
-        public void GoStandby()
+        // Opening the app while it's already running brings the running copy to the front instead.
+        public void BringBack()
         {
-            if (standby) return;
-            Player.Stop();
-            if (qrDialog != null) CloseQr();
-            dialog = null;
-            standby = true;
-            Thumbs.Paused = true;   // no background thumbnail work while you're on the desktop
-            DisplayModes.RestoreAll();
-            SetCursorHidden(false);
-            Hide();
-            if (tray == null)
-            {
-                tray = new NotifyIcon { Icon = Icon ?? SystemIcons.Application, Text = AppInfo.Name + " (on standby)" };
-                var menu = new ContextMenuStrip();
-                menu.Items.Add("Open " + AppInfo.Name, null, (s, e) => ShowFromStandby());
-                menu.Items.Add("Quit " + AppInfo.Name, null, (s, e) => Close());
-                tray.ContextMenuStrip = menu;
-                tray.DoubleClick += (s, e) => ShowFromStandby();
-                tray.BalloonTipClicked += (s, e) => ShowFromStandby();
-            }
-            tray.Visible = true;
-            tray.ShowBalloonTip(6000, AppInfo.Name + " is on standby", "Press Ctrl+Alt+H, any button on the phone remote, or View + Menu on a controller to come back.", ToolTipIcon.Info);
-            UpdateState();
-        }
-
-        // Back from standby (or just to the front), full screen.
-        public void ShowFromStandby()
-        {
-            if (standby)
-            {
-                standby = false;
-                if (tray != null) tray.Visible = false;
-                Thumbs.Paused = false;
-                Show();
-                ApplyDisplayMode();
-                lastLocalInput = DateTime.Now;   // don't greet them with the phone QR popup
-            }
             if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+            if (!Cfg.Windowed) ApplyDisplayMode();
             // Windows only lets the app that's in use take the front; pressing Alt for a moment is the usual way around that.
             TopMost = true;
             TopMost = false;
@@ -693,26 +641,10 @@ namespace Theater
             SetForegroundWindow(Handle);
             Activate();
             Kick();
-            UpdateState();
         }
 
-        [DllImport("user32.dll")] static extern bool RegisterHotKey(IntPtr hWnd, int id, uint modifiers, uint vk);
-        [DllImport("user32.dll")] static extern bool UnregisterHotKey(IntPtr hWnd, int id);
         [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hWnd);
         [DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
-
-        // Ctrl+Alt+H from anywhere brings the app back.
-        protected override void OnHandleCreated(EventArgs e)
-        {
-            base.OnHandleCreated(e);
-            RegisterHotKey(Handle, 1, 0x0001 | 0x0002 | 0x4000, (uint)Keys.H);   // Alt + Ctrl, no auto-repeat
-        }
-
-        protected override void OnHandleDestroyed(EventArgs e)
-        {
-            UnregisterHotKey(Handle, 1);
-            base.OnHandleDestroyed(e);
-        }
 
         // ---------- opening things ----------
 
@@ -859,7 +791,7 @@ namespace Theater
         // Asks once (with a countdown that installs by default); waits while a movie plays or a question is open.
         void OfferInstall()
         {
-            if (downloadedSetup == null || updatePostponed || standby || Player.Active || dialog != null || WindowState == FormWindowState.Minimized) return;
+            if (downloadedSetup == null || updatePostponed || Player.Active || dialog != null || WindowState == FormWindowState.Minimized) return;
             string notes = availableUpdate != null ? availableUpdate.Notes.Trim() : "";
             if (notes.Length > 280) notes = notes.Substring(0, 277) + "\u2026";
             dialog = new Dialog
@@ -1023,7 +955,7 @@ namespace Theater
         void SlowTick()
         {
             slowTicks++;
-            if (standby) { if (slowTicks % 4 == 0) UpdateState(); return; }
+
             if (Player.Active) return;
             if (WindowState == FormWindowState.Minimized) return;
             if (dialog != null && dialog.Expires.HasValue)
@@ -1045,7 +977,7 @@ namespace Theater
             if (clock != lastClock) { lastClock = clock; InvalidateVirtual(new RectangleF(900, 20, 1000, 100)); }
             if (Current.WantsText && slowTicks % 2 == 0) InvalidateVirtual(new RectangleF(90, 40, 1200, 100));
             if (toast != null && DateTime.Now > toastUntil) { toast = null; InvalidateVirtual(new RectangleF(0, 960, 1920, 100)); }
-            SetCursorHidden(!Cfg.Windowed && (DateTime.Now - lastMouse).TotalSeconds > 4);
+            UpdateCursor();
             UpdateState();
         }
 
@@ -1056,7 +988,23 @@ namespace Theater
             if (hide) Cursor.Hide(); else Cursor.Show();
         }
 
-        public void NoteMouse() { lastMouse = DateTime.Now; lastLocalInput = DateTime.Now; }
+        public void NoteMouse() { lastMouse = DateTime.Now; lastLocalInput = DateTime.Now; UpdateCursor(); }
+
+        // Keyboard, controller or phone: the mouse pointer gets out of the way.
+        public void NoteOtherInput() { lastOtherInput = DateTime.Now; UpdateCursor(); }
+
+        // The pointer shows only while the mouse is the thing being used (and, in full screen or during a movie,
+        // only for a few seconds after it last moved).
+        public bool MouseInUse
+        {
+            get
+            {
+                if (lastMouse <= lastOtherInput) return false;
+                return (Cfg.Windowed && !Player.Active) || (DateTime.Now - lastMouse).TotalSeconds < 4;
+            }
+        }
+
+        public void UpdateCursor() { SetCursorHidden(!MouseInUse); }
 
         void InvalidateVirtual(RectangleF v)
         {
@@ -1085,7 +1033,7 @@ namespace Theater
         public void UpdateState()
         {
             var d = new Dictionary<string, object>();
-            d["screen"] = standby ? "standby" : Player.Active ? "player" : Current.Name;
+            d["screen"] = Player.Active ? "player" : Current.Name;
             d["focus"] = Current.FocusTitle;
             d["dialog"] = dialog != null ? dialog.Title : null;
             d["playing"] = Player.Active;
@@ -1164,6 +1112,7 @@ namespace Theater
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
+            NoteOtherInput();
             if (NoteLocalInput(keyData != Keys.F11)) return true;
             if (keyData == Keys.F11 || keyData == (Keys.Alt | Keys.Enter)) { ToggleWindowed(); return true; }
             if (Player.Active) return Player.Key(keyData) || base.ProcessCmdKey(ref msg, keyData);
@@ -1234,7 +1183,7 @@ namespace Theater
             if (firstReport) return;
             lastMouse = lastInput = DateTime.Now;
             NoteLocalInput(false);
-            SetCursorHidden(false);
+            UpdateCursor();
             if (Player.Active) return;
             var p = ToVirtual(e.Location);
             if (dialog != null) { int i = dialog.Hit(p); if (i >= 0 && i != dialog.Sel) { dialog.Sel = i; Invalidate(); } return; }
@@ -1244,6 +1193,7 @@ namespace Theater
         protected override void OnMouseDown(MouseEventArgs e)
         {
             lastMouse = DateTime.Now;
+            UpdateCursor();
             if (NoteLocalInput(true)) return;
             SetCursorHidden(false);
             if (Player.Active) return;
@@ -1281,7 +1231,7 @@ namespace Theater
         {
             Act a;
             if (!RemoteActs.TryGetValue(k ?? "", out a)) return;
-            if (standby) { ShowFromStandby(); return; }
+            NoteOtherInput();
             if (WindowState == FormWindowState.Minimized) return;
             if (Player.Active) Player.Act(a);
             else if (a == Act.Home && dialog == null) { GoHome(); Current.Act(Act.Home); }   // back to the home screen, top row
@@ -1290,7 +1240,7 @@ namespace Theater
 
         public void RemoteText(string t)
         {
-            if (standby) ShowFromStandby();
+            NoteOtherInput();
             if (Player.Active || dialog != null) return;
             if (Current.WantsText) Current.SetText(t);
             else Push(GridScreen.Search(this, t));
@@ -1304,7 +1254,7 @@ namespace Theater
                 it = DiscItems.Find(d => d.Id == id);
                 if (it == null) return;
             }
-            if (standby) ShowFromStandby();
+            NoteOtherInput();
             if (Player.Active) Player.Stop();
             dialog = null;
             Open(it);
@@ -1331,6 +1281,7 @@ namespace Theater
         readonly List<KeyValuePair<RectangleF, Act>> buttons = new List<KeyValuePair<RectangleF, Act>>();
         RectangleF bar;
         Point lastMouse;
+        bool mouseSeen;
 
         public Player(TheaterForm f)
         {
@@ -1412,7 +1363,7 @@ namespace Theater
             {
                 ov.Hide();
                 F.ShowVideo(false);
-                F.SetCursorHidden(false);
+                F.UpdateCursor();
                 F.AfterPlayback();
             }
             F.UpdateState();
@@ -1446,7 +1397,7 @@ namespace Theater
                     if (session == my) OnStatus(t.IsFaulted ? null : t.Result);
                 })));
             }
-            F.SetCursorHidden(!OsdVisible);
+            F.UpdateCursor();
             Render();
         }
 
@@ -1748,7 +1699,6 @@ namespace Theater
         void ShowOsd(double seconds)
         {
             osdUntil = DateTime.Now.AddSeconds(seconds);
-            F.SetCursorHidden(false);
             Render();
         }
 
@@ -1756,15 +1706,19 @@ namespace Theater
 
         public void Mouse(Point p, MouseButtons button, Size size)
         {
-            F.NoteMouse();
             if (button == MouseButtons.None)
             {
                 if (p == lastMouse) return;
+                // The overlay appearing under a still pointer reports its position once; that isn't mouse use.
+                bool first = !mouseSeen;
+                mouseSeen = true;
                 lastMouse = p;
+                if (first) return;
+                F.NoteMouse();
                 if (!OsdVisible) ShowOsd(3); else osdUntil = DateTime.Now.AddSeconds(3);
-                F.SetCursorHidden(false);
                 return;
             }
+            F.NoteMouse();
             if (button == MouseButtons.Right || button == MouseButtons.XButton1) { Act(Theater.Act.Back); return; }
             if (button != MouseButtons.Left) return;
             float s = Math.Min(size.Width / 1920f, size.Height / 1080f);

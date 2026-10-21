@@ -67,17 +67,13 @@ Tip: in Chrome on Android, use **⋮ → Add to Home screen** so the remote open
 
 With a mouse, hover to highlight, click to choose, right-click to go back, and use the scroll wheel for volume during a movie.
 
-### Exiting, standby and sleep
+### Exiting
 
-Pressing **Back** on the home screen offers:
+Pressing **Back** on the home screen offers **Stay**, **Restart the PC**, **Shut down the PC**, or **Exit to desktop**. Restart and shut down ask again with a 15-second countdown you can cancel. Opening the app while it's already running brings the running copy to the front.
 
-- **Stay**, the first choice, goes back to the app.
-- **Restart the PC.**
-- **Standby (exit to desktop)**: the app goes on standby with an icon by the clock, ready to come back full screen. Press **Ctrl+Alt+H**, any button on the phone remote, or **View + Menu** on a controller (or open it from the Start menu) to bring it back.
-- **Put the PC to sleep**: when it wakes, the app is right where you left it.
-- **Quit the app** completely.
+**Waking the PC from your phone:** install a free "Wake On LAN" app and enter the details shown in **Settings â†’ Wake this PC from your phone**. Over Wi-Fi this works from sleep; to turn the PC on from a full shutdown it needs an Ethernet cable and "Wake on LAN" turned on in the BIOS.
 
-**Waking the PC from your phone:** install a free "Wake On LAN" app and enter the details shown in **Settings â†’ Wake this PC from your phone**. It wakes the PC from sleep.
+The mouse pointer hides whenever you use the keyboard, a controller or the phone remote, and comes back when you move the mouse.
 
 ### Game controllers
 
