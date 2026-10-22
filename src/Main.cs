@@ -15,8 +15,8 @@ using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("Eric's Home Theater")]
 [assembly: System.Reflection.AssemblyProduct("Eric's Home Theater")]
-[assembly: System.Reflection.AssemblyVersion("1.6.2.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.6.2.0")]
+[assembly: System.Reflection.AssemblyVersion("1.6.3.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.6.3.0")]
 
 namespace Theater
 {
@@ -676,9 +676,10 @@ namespace Theater
 
         // ---------- opening things ----------
 
-        public void Open(MediaItem it)
+        public void Open(MediaItem it, List<MediaItem> from = null)
         {
             if (it == null) return;
+            Player.Queue = from != null ? new List<MediaItem>(from) : null;
             switch (it.Kind)
             {
                 case Kind.Collection:
@@ -1073,6 +1074,8 @@ namespace Theater
                 d["paused"] = Player.Paused;
                 d["volume"] = (int)Math.Round(Player.St.Volume * 100 / 256.0);
                 d["disc"] = Player.Item.IsDiscUri;
+                var up = Player.FindNext();
+                d["next"] = up != null ? up.FullTitle : null;
             }
             StateJson = new JavaScriptSerializer().Serialize(d);
         }
@@ -1275,7 +1278,7 @@ namespace Theater
             { "back", Act.Back }, { "home", Act.Home }, { "playpause", Act.PlayPause }, { "stop", Act.Stop },
             { "volup", Act.VolUp }, { "voldown", Act.VolDown }, { "mute", Act.Mute }, { "audio", Act.Audio }, { "subs", Act.Subs },
             { "ff", Act.Forward }, { "rew", Act.Rewind }, { "info", Act.Info }, { "menu", Act.Menu },
-            { "next", Act.NextChapter }, { "prev", Act.PrevChapter }, { "search", Act.Search }
+            { "next", Act.NextChapter }, { "prev", Act.PrevChapter }, { "search", Act.Search }, { "nextmovie", Act.NextMovie }
         };
 
         public void RemoteKey(string k)
@@ -1514,9 +1517,54 @@ namespace Theater
             if (n != null) Start(n, 0);
         }
 
+        // The row or list the movie was opened from; "next movie" follows it. Null means the whole library.
+        public List<MediaItem> Queue;
+
+        // What "next movie" plays: the next episode of a series, otherwise the next movie in the list it was opened from.
+        public MediaItem FindNext()
+        {
+            if (!Active || Item == null || IsDisc) return null;
+            if (next != null) return next;
+            if (Item.Parent != null && Item.Parent.Children != null)
+            {
+                var kids = Item.Parent.Children;
+                for (int j = kids.IndexOf(Item) + 1; j > 0 && j < kids.Count; j++)
+                    if (kids[j].Kind == Kind.Movie) return kids[j];
+            }
+            // The list it was opened from first; at the end of that list, carry on through the library.
+            return After(Queue) ?? After(F.Lib.Items);
+        }
+
+        MediaItem After(List<MediaItem> list)
+        {
+            if (list == null) return null;
+            // Where this movie sits in the list: itself, or its series/collection tile.
+            int k = list.IndexOf(Item);
+            if (k < 0 && Item.Parent != null) k = list.IndexOf(Item.Parent);
+            if (k < 0) return null;
+            for (int j = k + 1; j < list.Count; j++)
+            {
+                var c = list[j];
+                if (c == null || c.IsGenre || c == Item || c == Item.Parent) continue;
+                if (c.Kind == Kind.Movie) return c;
+                if (c.Kind == Kind.Collection && c.Children != null && c.Children.Count > 0 && c.Children[0].Kind == Kind.Movie) return c.Children[0];
+            }
+            return null;
+        }
+
+        // Stops this movie (its spot is saved) and starts the next one, resuming it if it was half watched.
+        void SkipToNext()
+        {
+            var n = FindNext();
+            if (n == null) { Flash("No more movies after this one", -1); Render(); return; }
+            var w = F.Hist.Get(n.Path);
+            Start(n, w != null && !w.Watched && w.Pos > 30 ? w.Pos : 0);
+        }
+
         public void Act(Act a)
         {
             if (!Active) return;
+            if (a == Theater.Act.NextMovie) { SkipToNext(); return; }
             if (failure != null || !started)
             {
                 if (a == Theater.Act.Back || a == Theater.Act.Stop || a == Theater.Act.Home || (failure != null && a == Theater.Act.Ok)) Stop();
@@ -1580,6 +1628,7 @@ namespace Theater
                 case Keys.PageUp: case Keys.MediaPreviousTrack: a = Theater.Act.PrevChapter; break;
                 case Keys.Tab: case Keys.D: case Keys.Apps: a = Theater.Act.Menu; break;
                 case Keys.I: a = Theater.Act.Info; break;
+                case Keys.N: a = Theater.Act.NextMovie; break;
             }
             if (a == Theater.Act.None) return false;
             Act(a);

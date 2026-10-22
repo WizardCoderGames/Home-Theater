@@ -12,7 +12,7 @@ using System.Windows.Forms;
 
 namespace Theater
 {
-    enum Act { None, Up, Down, Left, Right, Ok, Back, Home, PlayPause, Stop, VolUp, VolDown, Mute, Audio, Subs, Forward, Rewind, Info, Menu, NextChapter, PrevChapter, Search }
+    enum Act { None, Up, Down, Left, Right, Ok, Back, Home, PlayPause, Stop, VolUp, VolDown, Mute, Audio, Subs, Forward, Rewind, Info, Menu, NextChapter, PrevChapter, Search, NextMovie }
 
     static class Ui
     {
@@ -381,6 +381,8 @@ namespace Theater
 
         public override string FocusTitle { get { var it = Focused(); return it != null ? it.Title : inMenu ? Pills[pill] : ""; } }
 
+        List<MediaItem> RowItems() { return inMenu || row < 0 || row >= rows.Count ? null : rows[row].Items; }
+
         MediaItem Focused()
         {
             if (inMenu || row < 0 || row >= rows.Count) return null;
@@ -702,10 +704,10 @@ namespace Theater
                     break;
                 case Theater.Act.Ok:
                     if (inMenu) OpenPill(pill);
-                    else F.Open(Focused());
+                    else F.Open(Focused(), RowItems());
                     return;
                 case Theater.Act.PlayPause:
-                    { var it = Focused(); if (it != null) F.Open(it); }
+                    { var it = Focused(); if (it != null) F.Open(it, RowItems()); }
                     return;
                 case Theater.Act.Back:
                     F.AskExit();
@@ -771,10 +773,10 @@ namespace Theater
         public override void Click(PointF p)
         {
             int r, i;
-            if (HitCard(p, out r, out i)) { inMenu = false; row = r; rows[r].Col = i; F.Open(rows[r].Items[i]); return; }
+            if (HitCard(p, out r, out i)) { inMenu = false; row = r; rows[r].Col = i; F.Open(rows[r].Items[i], rows[r].Items); return; }
             int pi = HitPill(p);
             if (pi >= 0) { OpenPill(pi); return; }
-            if (playButton.Contains(p) && hero != null) F.Open(hero);
+            if (playButton.Contains(p) && hero != null) F.Open(hero, RowItems());
         }
 
         public override void Wheel(int delta)
@@ -948,7 +950,7 @@ namespace Theater
                     break;
                 case Theater.Act.Ok:
                 case Theater.Act.PlayPause:
-                    if (sel < n) F.Open(items[sel]);
+                    if (sel < n) F.Open(items[sel], items);
                     return;
                 case Theater.Act.Back: F.Pop(); return;
                 case Theater.Act.Home: F.GoHome(); return;
@@ -976,7 +978,7 @@ namespace Theater
         public override void Click(PointF p)
         {
             int i = Hit(p);
-            if (i >= 0) { sel = i; F.Open(items[i]); }
+            if (i >= 0) { sel = i; F.Open(items[i], items); }
         }
 
         public override void Wheel(int delta)

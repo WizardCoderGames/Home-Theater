@@ -12,7 +12,7 @@ It plays the movie files already on your PC (MKV, MP4, AVI and more, up to 4K HD
 - **Organizes your library.** It finds your movies in the folders you choose, cleans up messy file names (`Creepshow.1982.1080p.BluRay.x264-[YTS]` becomes **Creepshow (1982)**), groups series and collections, and grabs a scene from each movie as its thumbnail.
 - **Genres.** Horror, Comedy, Action, Superhero, Sci-Fi, Thriller, Fantasy, Family & Animation, TV Series, Crime and Drama, plus Slashers, Zombies, Creature Features and Horror Comedy. Change any title's genres from its menu.
 - **Remembers where you stopped.** Offers to resume, marks finished movies as watched, and plays the next episode of a series automatically.
-- **Your phone is the remote.** Scan the QR code in Settings, type the 4-digit code that pops up on the TV, and you get a D-pad, play/pause, volume, audio and subtitle buttons, search, and your whole library to tap and play. Works in any phone's web browser; no app to install.
+- **Your phone is the remote.** Scan the QR code in Settings, type the 4-digit code that pops up on the TV, and you get a D-pad, play/pause, volume, audio and subtitle buttons, a Next movie button, search, and your whole library to tap and play. Works in any phone's web browser; no app to install.
 - **Search** by title, year or genre from the keyboard or your phone.
 - **Discs.** Plug in a DVD or Blu-ray drive and a Disc row appears. DVDs and unprotected discs play directly (see *Discs* below).
 - **USB drives.** Plug in a flash drive, SD card or external USB hard drive and its movies are added automatically, in a "USB" row on the home screen and in search, genres and All Movies. Unplug it and they disappear again. Turn this off in **Settings → USB drives**.
@@ -65,6 +65,7 @@ Tip: in Chrome on Android, use **⋮ → Add to Home screen** so the remote open
 | Skip back / forward | ← / → (10 s / 30 s) | ⏪ / ⏩ |
 | Volume / mute | + / − / M | Volume buttons |
 | Audio track / subtitles | A / S | Audio / Subtitles |
+| Next movie (the next one in the row or list you opened it from; the next episode in a series) | N | Next movie |
 | System info | F1 | Info |
 | Window or full screen | F11 | |
 
