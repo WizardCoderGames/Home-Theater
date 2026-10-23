@@ -225,7 +225,6 @@ namespace Theater
             }
             g.Restore(state);
             DrawStatus(g);
-            Ui.Hints(g, new RectangleF(104, 1022, 1700, 30), F.UsingController ? "D-pad~A:Choose|B:Back" : "Arrows~Enter:Choose|Esc:Back", StringAlignment.Near, F.UsingController);
         }
 
         void DrawStatus(Graphics g)
@@ -313,6 +312,13 @@ namespace Theater
         public override string FocusTitle { get { return "Wi-Fi password for " + net.Ssid; } }   // never the password itself
         public override bool WantsText { get { return true; } }
         public override string FocusKey { get { return "key" + focus; } }
+
+        public override string BarLabel(Act a, string label)
+        {
+            if (a == Theater.Act.Ok) return typed ? "Connect" : "Type key";
+            if (a == Theater.Act.Back) return "Cancel";
+            return label;
+        }
 
         void BuildKeys()
         {
@@ -482,9 +488,6 @@ namespace Theater
                 Ui.FillRound(g, bg, k.Rect, 12);
                 Ui.Text(g, k.Text, k.Id == "char" ? Ui.F(34, 1) : Ui.F(24, 1), fg, k.Rect, StringAlignment.Center, StringAlignment.Center);
             }
-            Ui.Hints(g, new RectangleF(104, 1022, 1712, 30), F.UsingController
-                ? "D-pad~A:Type the key|X:Delete|Start:Connect|B:Cancel"
-                : "Type on your keyboard or phone, then|Enter:Connect|Backspace:Delete|Esc:Cancel", StringAlignment.Center, F.UsingController);
         }
 
         int HitKey(PointF p) { for (int i = 0; i < keys.Count; i++) if (keys[i].Rect.Contains(p)) return i; return -1; }

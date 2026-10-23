@@ -15,8 +15,8 @@ using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("Eric's Home Theater")]
 [assembly: System.Reflection.AssemblyProduct("Eric's Home Theater")]
-[assembly: System.Reflection.AssemblyVersion("1.6.3.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.6.3.0")]
+[assembly: System.Reflection.AssemblyVersion("1.7.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.7.0.0")]
 
 namespace Theater
 {
@@ -61,7 +61,7 @@ namespace Theater
         }
     }
 
-    class TheaterForm : Form
+    partial class TheaterForm : Form
     {
         public Settings Cfg;
         public History Hist;
@@ -79,6 +79,8 @@ namespace Theater
         string downloadedSetup;
         bool updateBusy, updatePostponed;
         readonly Timer updateTimer = new Timer();
+        bool updateChecked;        // a check has reached GitHub since the app started
+        string notifiedVersion;    // the update a notification was already shown for
         Dialog pairDialog, qrDialog;
         // Last time someone used the keyboard, mouse or a controller on this PC (not the phone).
         DateTime lastLocalInput = DateTime.MinValue;
@@ -158,7 +160,7 @@ namespace Theater
 
             anim.Tick += (s, e) =>
             {
-                bool moving = Current.Animate();
+                bool moving = Current.Animate() | NotesMoving;
                 Invalidate();
                 if (!moving) anim.Stop();
             };
@@ -178,7 +180,7 @@ namespace Theater
                 AutoWifi();
                 PollDiscs();
                 PollUsb();
-                System.Net.NetworkInformation.NetworkChange.NetworkAddressChanged += (s2, e2) => { try { BeginInvoke((Action)UpdateRemoteUrl); } catch { } };
+                System.Net.NetworkInformation.NetworkChange.NetworkAddressChanged += (s2, e2) => { try { BeginInvoke((Action)(() => { UpdateRemoteUrl(); if (!updateChecked) CheckForUpdates(false); })); } catch { } };
                 Microsoft.Win32.SystemEvents.DisplaySettingsChanged += (s2, e2) => { try { BeginInvoke((Action)FitScreen); } catch { } };
                 slow.Start();
                 discTimer.Start();
@@ -193,9 +195,10 @@ namespace Theater
                             try { BeginInvoke((Action)BringBack); } catch { return; }
                         }
                     }) { IsBackground = true, Name = "show-signal" }.Start();
-                // First update check shortly after start, then every 6 hours.
-                updateTimer.Interval = Environment.GetEnvironmentVariable("THEATER_TEST") == "1" ? 3000 : 30000;
-                updateTimer.Tick += (s2, e2) => { updateTimer.Interval = 6 * 60 * 60 * 1000; CheckForUpdates(false); };
+                // Check for updates right away (2 seconds after opening). If the PC isn't online yet, for example just
+                // after Windows starts, try again every minute and as soon as a network comes up; then every 6 hours.
+                updateTimer.Interval = 2000;
+                updateTimer.Tick += (s2, e2) => { updateTimer.Interval = 60 * 1000; CheckForUpdates(false); };
                 updateTimer.Start();
             };
             LocationChanged += (s, e) => { if (Player.Active) Player.Reposition(); };
@@ -250,9 +253,9 @@ namespace Theater
                         Lib = t.Result;
                         foreach (var s in stack) s.Refresh();
                     }
-                    string usbNote = UsbAnnouncement() ?? usbRemovedNote;
+                    string usbNote = UsbAnnouncement(usb) ?? usbRemovedNote;
                     usbRemovedNote = null;
-                    if (usbNote != null) ShowToast(usbNote, 5);
+                    if (usbNote != null) { var n = usbNote.Split('\n'); Notify("\uE88E", n[0], n.Length > 1 ? n[1] : "", 7, "usb"); toast = null; }
                     else if (!quiet || t.Result != null) ShowToast(Lib.Items.Count + (Lib.Items.Count == 1 ? " title" : " titles") + " in your library", 3);
                     else toast = null;
                 }
@@ -284,23 +287,28 @@ namespace Theater
                 Usb = found;
                 usbAnnounce.AddRange(added);
                 if (removed.Count > 0)
-                    usbRemovedNote = removed.Count == 1 ? "USB drive " + removed[0].Display + " removed \u2014 its movies are hidden until it's back" : removed.Count + " USB drives removed";
+                    usbRemovedNote = (removed.Count == 1 ? "USB drive " + removed[0].Display + " removed" : removed.Count + " USB drives removed") + "\nIts movies are hidden until it's plugged in again";
                 if (added.Count > 0)
-                    ShowToast("Looking for movies on " + (added.Count == 1 ? added[0].Display : "the USB drives") + "\u2026", 30);
+                    Notify("\uE88E", added.Count == 1 ? "USB drive connected" : added.Count + " USB drives connected", "Looking for movies on " + (added.Count == 1 ? added[0].Display : "them") + "\u2026", 30, "usb");
                 if (Current is SettingsScreen) Current.Refresh();
                 Rescan(true);
             })));
         }
 
-        // "USB drive "Movies" connected - 12 titles added", for drives that just came in.
-        string UsbAnnouncement()
+        // "12 videos added from USB", for drives that just came in.
+        string UsbAnnouncement(List<UsbDrive> scanned)
         {
-            var still = usbAnnounce.Where(d => Usb.Any(o => o.Root == d.Root && o.Label == d.Label)).ToList();
-            usbAnnounce.Clear();
+            // Only drives that were part of the scan that just finished: one that came in during an earlier
+            // scan is announced when the scan that includes it is done.
+            var still = usbAnnounce.Where(d => scanned.Any(o => o.Root == d.Root && o.Label == d.Label) && Usb.Any(o => o.Root == d.Root && o.Label == d.Label)).ToList();
+            usbAnnounce.RemoveAll(d => still.Contains(d) || !Usb.Any(o => o.Root == d.Root && o.Label == d.Label));
             if (still.Count == 0) return null;
-            int count = Lib.Items.Count(i => i.Path != null && still.Any(d => i.Path.StartsWith(d.Root, StringComparison.OrdinalIgnoreCase)));
-            string which = still.Count == 1 ? "USB drive " + still[0].Display : still.Count + " USB drives";
-            return count == 0 ? which + " connected \u2014 no movies found on it" : which + " connected \u2014 " + count + (count == 1 ? " title" : " titles") + " added";
+            // Every video, including ones inside series and collection folders.
+            int count = Lib.Flatten().Count(i => i.Path != null && still.Any(d => i.Path.StartsWith(d.Root, StringComparison.OrdinalIgnoreCase)));
+            string which = still.Count == 1 ? still[0].Display : still.Count + " USB drives";
+            // Title and text of a notification, separated by a line break.
+            return count == 0 ? "USB drive connected\n" + which + " · no movies found on it"
+                : count + (count == 1 ? " video" : " videos") + " added from USB\n" + which + " · in the USB row";
         }
 
         public void ToggleUsbAuto()
@@ -570,7 +578,7 @@ namespace Theater
             var list = new List<MediaItem>();
             foreach (var g in Genres.Order)
             {
-                var kids = Lib.Items.Where(i => i.Genres.Contains(g)).ToList();
+                var kids = Genres.In(Lib, g);
                 if (kids.Count > 0) list.Add(new MediaItem { Kind = Kind.Collection, IsGenre = true, Id = "genre-" + Library.Hash(g), Title = g, Children = kids });
             }
             var other = Lib.Items.Where(i => i.Genres.Count == 0).ToList();
@@ -609,9 +617,11 @@ namespace Theater
                 {
                     var list = new List<string>(it.Genres);
                     string g = Genres.Order[i];
-                    if (list.Contains(g)) list.Remove(g); else list.Add(g);
+                    bool added = !list.Contains(g);
+                    if (added) list.Add(g); else list.Remove(g);
                     list.Sort((a, b) => Array.IndexOf(Genres.Order, a).CompareTo(Array.IndexOf(Genres.Order, b)));
                     Genres.Set(it, list);
+                    Notify("", (added ? "Added to " : "Removed from ") + g, it.FullTitle, 4);
                     EditGenres(it, i);
                 }
                 else RefreshHome();
@@ -773,8 +783,12 @@ namespace Theater
                 {
                     UpdateStatus = "Couldn't check \u2014 no internet?";
                     if (userAsked) ShowToast("Couldn't reach GitHub to check for updates", 4);
+                    RefreshSettingsScreen();
+                    return;   // the update timer tries again in a minute
                 }
-                else if (!Updater.IsNewer(t.Result))
+                updateChecked = true;
+                updateTimer.Interval = 6 * 60 * 60 * 1000;
+                if (!Updater.IsNewer(t.Result))
                 {
                     availableUpdate = null;
                     UpdateStatus = "Up to date";
@@ -784,6 +798,12 @@ namespace Theater
                 {
                     availableUpdate = t.Result;
                     UpdateStatus = "Version " + availableUpdate.Version + " available";
+                    string v = availableUpdate.Version.ToString();
+                    if (v != notifiedVersion)
+                    {
+                        notifiedVersion = v;
+                        Notify("\ue896", "Update available: version " + v, userAsked || Cfg.AutoUpdate ? "Downloading it now\u2026" : "Settings \u2192 Check for updates to install it", 8);
+                    }
                     if (userAsked || Cfg.AutoUpdate) DownloadUpdate(availableUpdate, userAsked);
                 }
                 RefreshSettingsScreen();
@@ -1005,7 +1025,8 @@ namespace Theater
             string clock = Ui.Clock();
             if (clock != lastClock) { lastClock = clock; InvalidateVirtual(new RectangleF(900, 20, 1000, 100)); }
             if (Current.WantsText && slowTicks % 2 == 0) InvalidateVirtual(new RectangleF(90, 40, 1200, 100));
-            if (toast != null && DateTime.Now > toastUntil) { toast = null; InvalidateVirtual(new RectangleF(0, 960, 1920, 100)); }
+            if (toast != null && DateTime.Now > toastUntil) { toast = null; InvalidateVirtual(new RectangleF(0, BarTop - 80, 1920, 70)); }
+            ExpireNotes();
             UpdateCursor();
             UpdateState();
         }
@@ -1102,11 +1123,13 @@ namespace Theater
             g.PixelOffsetMode = anim.Enabled ? PixelOffsetMode.HighSpeed : PixelOffsetMode.Half;
             Current.Draw(g);
             if (dialog != null) dialog.Draw(g);
+            DrawBar(g);
+            DrawNotes(g);
             if (toast != null && DateTime.Now < toastUntil)
             {
                 var f = Ui.F(22, 1);
                 float w = Ui.Width(g, toast, f) + 64;
-                var r = new RectangleF((1920 - w) / 2, 978, w, 56);
+                var r = new RectangleF((1920 - w) / 2, BarTop - 74, w, 56);
                 Ui.FillRound(g, Color.FromArgb(235, 38, 41, 51), r, 28);
                 Ui.Text(g, toast, f, Ui.Ink, r, StringAlignment.Center, StringAlignment.Center);
             }
@@ -1239,6 +1262,7 @@ namespace Theater
             UpdateCursor();
             if (Player.Active) return;
             var p = ToVirtual(e.Location);
+            if (BarMove(p)) return;
             if (dialog != null) { int i = dialog.Hit(p); if (i >= 0 && i != dialog.Sel) { dialog.Sel = i; Invalidate(); } return; }
             Current.Move(p);
         }
@@ -1253,6 +1277,7 @@ namespace Theater
             if (e.Button == MouseButtons.Right || e.Button == MouseButtons.XButton1) { Dispatch(Act.Back); return; }
             if (e.Button != MouseButtons.Left) return;
             var p = ToVirtual(e.Location);
+            if (BarClick(p)) return;
             if (dialog != null)
             {
                 int i = dialog.Hit(p);

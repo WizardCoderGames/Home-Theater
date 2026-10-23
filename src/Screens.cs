@@ -342,6 +342,8 @@ namespace Theater
         public virtual void Leave() { }
         public virtual string FocusTitle { get { return ""; } }
         public virtual string FocusKey { get { return FocusTitle; } }   // identifies the focused thing (for move sounds)
+        // The control bar's label for Select or Back on this screen.
+        public virtual string BarLabel(Act a, string label) { return label; }
 
         protected void DrawClock(Graphics g)
         {
@@ -417,8 +419,9 @@ namespace Theater
             if (uhd.Count > 0) rows.Add(new Row { Title = "4K & HDR", Items = uhd, LongTitles = true });
             foreach (var genre in Genres.Order)
             {
-                var list = F.Lib.Items.Where(i => i.Genres.Contains(genre)).ToList();
-                if (list.Count >= 3) rows.Add(new Row { Title = genre, Items = list });
+                // Every genre with something in it gets a row, so a movie you just put in a genre shows up right away.
+                var list = Genres.In(F.Lib, genre);
+                if (list.Count > 0) rows.Add(new Row { Title = genre, Items = list, LongTitles = list.Any(i => i.Parent != null) });
             }
             var cols = F.Lib.Items.Where(i => i.Kind == Kind.Collection).ToList();
             if (cols.Count > 0) rows.Add(new Row { Title = "Collections & Series", Items = cols });
@@ -837,7 +840,7 @@ namespace Theater
             var words = query.ToLowerInvariant().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             items = source.Where(i =>
             {
-                string hay = (i.FullTitle + " " + i.Year + " " + string.Join(" ", (i.Parent ?? i).Genres)).ToLowerInvariant();
+                string hay = (i.FullTitle + " " + i.Year + " " + string.Join(" ", i.Genres)).ToLowerInvariant();   // movies in collections inherit its genres
                 return words.All(w => hay.Contains(w));
             }).ToList();
         }
@@ -1221,7 +1224,6 @@ namespace Theater
             }
             g.Restore(state);
             DrawPhoneCard(g);
-            Ui.Hints(g, new RectangleF(104, 1022, 1700, 30), F.UsingController ? "D-pad~A:Choose|B:Back|Y:System info" : "Arrows~Enter:Choose|Esc:Back|F11:Window|F1:System info", StringAlignment.Near, F.UsingController);
         }
 
         void DrawPhoneCard(Graphics g)
@@ -1393,8 +1395,6 @@ namespace Theater
             Card(g, new RectangleF(104, 448, 840, 288), "", "Memory", mem);
             Card(g, new RectangleF(976, 448, 840, 288), "", "Display & network", disp);
             DrivesCard(g, new RectangleF(104, 756, 1712, 252), s.DriveList);
-            Ui.Text(g, "Updates every second  ·  Phone remote " + F.RemoteUrl + "  ·  Start with Windows " + (StartWithWindowsSafe() ? "on" : "off"), Ui.F(18), Ui.Dim, new RectangleF(104, 1024, 1400, 30));
-            Ui.Hints(g, new RectangleF(1416, 1022, 400, 30), F.UsingController ? "B:Back" : "Esc:Back", StringAlignment.Far, F.UsingController);
         }
 
         // Every drive with a bar for how full it is, in up to three columns.

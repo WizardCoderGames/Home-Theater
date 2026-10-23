@@ -1165,6 +1165,7 @@ namespace Theater
                 if (File.Exists(MinePath))
                     foreach (var line in File.ReadAllLines(MinePath))
                     {
+                        if (line.TrimStart().StartsWith("#")) continue;
                         var p = line.Split('|');
                         if (p.Length >= 2 && p[0].Trim().Length > 0) mine[p[0].Trim()] = Split(p[1]);
                     }
@@ -1177,18 +1178,37 @@ namespace Theater
             lock (gate)
             {
                 EnsureLoaded();
-                foreach (var it in lib.Items) it.Genres = Lookup(it);
+                foreach (var it in lib.Items)
+                {
+                    it.Genres = Lookup(it, null);
+                    // Movies inside a series or collection: their own genres if they have any, otherwise the collection's.
+                    if (it.Children != null) foreach (var c in it.Children) c.Genres = Lookup(c, it.Genres);
+                }
             }
         }
 
-        static List<string> Lookup(MediaItem it)
+        static List<string> Lookup(MediaItem it, List<string> inherit)
         {
             List<string> g;
             if (mine.TryGetValue(it.Id, out g)) return new List<string>(g);
             string t = Norm(it.Title);
             if (it.Year != "" && builtIn.TryGetValue(t + "|" + it.Year, out g)) return new List<string>(g);
             if (builtIn.TryGetValue(t, out g)) return new List<string>(g);
-            return new List<string>();
+            return inherit != null ? new List<string>(inherit) : new List<string>();
+        }
+
+        // Everything in a genre: library titles, plus movies inside collections that were put in it on their own.
+        public static List<MediaItem> In(Library lib, string genre)
+        {
+            var list = new List<MediaItem>();
+            foreach (var it in lib.Items)
+            {
+                if (it.IsGenre) continue;
+                if (it.Genres.Contains(genre)) list.Add(it);
+                else if (it.Children != null)
+                    foreach (var c in it.Children) if (c.Genres.Contains(genre)) list.Add(c);
+            }
+            return list;
         }
 
         public static void Set(MediaItem it, List<string> genres)
@@ -1198,6 +1218,7 @@ namespace Theater
                 EnsureLoaded();
                 mine[it.Id] = new List<string>(genres);
                 it.Genres = new List<string>(genres);
+                if (it.Children != null) foreach (var c in it.Children) c.Genres = Lookup(c, it.Genres);
                 try
                 {
                     Directory.CreateDirectory(Settings.Dir);

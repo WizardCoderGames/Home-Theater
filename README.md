@@ -22,7 +22,9 @@ It plays the movie files already on your PC (MKV, MP4, AVI and more, up to 4K HD
 - **Wi-Fi settings.** See Ethernet and nearby Wi-Fi networks and connect from the couch. Type a new network's password with a keyboard, an on-screen keyboard (arrows or a controller), or your phone.
 - **Menu sounds.** Soft clicks when you move, select and go back, and a bump at the end of a row. Set them to On, Quiet or Off in **Settings → Menu sounds**; they never play during a movie.
 - **Themes.** Seven color themes: Midnight gold, Ocean blue, Cinema red, Emerald, Royal purple, Sunset orange and Graphite (**Settings → Theme**).
-- **Updates itself.** When a new version is published here, the app downloads it, checks it, and updates and reopens itself; it never interrupts a movie.
+- **Updates itself.** It checks for a new version as soon as it opens (and keeps trying until the PC is online), then every 6 hours. When one is published here, it downloads it, checks it, and updates and reopens itself; it never interrupts a movie.
+- **Notifications.** A card in the bottom-right corner tells you when an update is available, when you add a movie to a genre, and when a USB drive is plugged in (and how many videos it added) or removed.
+- **On-screen navigation buttons.** Arrows, Select and Back sit along the bottom of every menu, labeled with the keyboard key or controller button that does the same thing, and you can click them with a mouse.
 
 ## Requirements
 
